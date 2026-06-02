@@ -1,0 +1,12 @@
+volumes/db/data
+volumes/storage
+.env
+test.http
+docker-compose.override.yml
+instances/
+supabase-instance-install/
+branches/
+.codex
+.codex/
+exported-migrations/
+volumes/authelia/
