@@ -30,7 +30,9 @@ DATA_DIR = Path(os.environ.get("SYNC_API_DATA_DIR", "/data"))
 ENVIRONMENTS_FILE = DATA_DIR / "environments.json"
 LOG_FILE = Path(os.environ.get("SYNC_API_LOG_FILE", str(DATA_DIR / "sync-api.log")))
 LOG_BODY_MAX_CHARS = int(os.environ.get("SYNC_API_LOG_BODY_MAX_CHARS", "4000"))
-OPENAPI_FILE = Path(os.environ.get("SYNC_API_OPENAPI_FILE", "/app/openapi.json"))
+OPENAPI_FILE = Path(
+    os.environ.get("SYNC_API_OPENAPI_FILE", "/app/jrp-supabase-slim.json")
+)
 BRANCHING_DOC_FILE = Path(
     os.environ.get("SYNC_API_BRANCHING_DOC_FILE", "/app/branching.md")
 )
@@ -184,4 +186,3 @@ jobs_lock = threading.Lock()
 log_lock = threading.Lock()
 branch_operation_lock = threading.Lock()
 jobs = {}
-

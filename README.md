@@ -44,7 +44,7 @@ python3 -m unittest docker/sync-api/test_app.py
 
 The sync API serves:
 
-- `/openapi.json`
+- `/jrp-supabase-slim.json`
 - `/branching.md`
 
 Those documents describe the branch, migration, and MCP-facing APIs exposed by the control plane.

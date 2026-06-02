@@ -21,6 +21,7 @@ import sync_api.db_sql as _db_sql
 import sync_api.edge_functions as _edge_functions
 import sync_api.env_config as _env_config
 import sync_api.http_utils as _http_utils
+import sync_api.import_plan as _import_plan
 import sync_api.management as _management
 import sync_api.migration_display as _migration_display
 import sync_api.migrations as _migrations
@@ -35,6 +36,7 @@ from sync_api.audit import *
 from sync_api.management import *
 from sync_api.env_config import *
 from sync_api.http_utils import *
+from sync_api.import_plan import *
 from sync_api.openapi import *
 from sync_api.db import *
 from sync_api.branches import *
@@ -50,6 +52,7 @@ _COMPONENT_MODULES = (
     _management,
     _env_config,
     _http_utils,
+    _import_plan,
     _openapi,
     _db,
     _db_core,

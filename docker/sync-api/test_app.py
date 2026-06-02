@@ -689,6 +689,13 @@ class BranchManagerTests(unittest.TestCase):
 
 
 class BranchingDocumentationTests(unittest.TestCase):
+    def test_openapi_exposes_branded_public_definition(self):
+        definition = app.read_openapi_definition()
+        route = definition["paths"]["/v1/jrp-supabase-slim.json"]["get"]
+
+        self.assertEqual(route["security"], [])
+        self.assertIn("application/json", route["responses"]["200"]["content"])
+
     def test_openapi_exposes_public_branching_guide(self):
         definition = app.read_openapi_definition()
         route = definition["paths"]["/v1/branching.md"]["get"]
@@ -706,6 +713,125 @@ class BranchingDocumentationTests(unittest.TestCase):
                 self.assertEqual(app.read_branching_doc(), "# Branching\n")
             finally:
                 app.BRANCHING_DOC_FILE = original_doc_file
+
+
+class ImportPlanTests(unittest.TestCase):
+    def test_import_plan_requires_source_identity(self):
+        with self.assertRaises(ValueError):
+            app.build_import_plan({"source": {}})
+
+    def test_import_plan_keeps_tool_state_outside_supabase_databases(self):
+        plan = app.build_import_plan(
+            {
+                "database_mode": "schema-only",
+                "source": {
+                    "type": "platform",
+                    "project_ref": "abcdefghijklmnopqrst",
+                },
+                "target": {
+                    "type": "local",
+                },
+            }
+        )
+
+        self.assertEqual(plan["kind"], "import_plan")
+        self.assertFalse(plan["control_plane"]["uses_source_database_for_tool_state"])
+        self.assertFalse(plan["control_plane"]["uses_target_database_for_tool_state"])
+        self.assertFalse(plan["feasibility"]["requires_tool_database"])
+        self.assertEqual(plan["target"]["side"]["container"], "supabase-db")
+        self.assertFalse(plan["source"]["database"]["available"])
+
+    def test_import_plan_summarizes_database_when_connection_available(self):
+        original_psql_json = app.psql_json
+
+        def fake_psql_json(endpoint, sql):
+            if "pg_database_size" in sql:
+                return {
+                    "database_name": "postgres",
+                    "current_user": "postgres",
+                    "server_version": "16.1",
+                    "server_version_num": 160001,
+                    "database_size_bytes": 123456,
+                    "extensions": [
+                        {
+                            "name": "pgcrypto",
+                            "schema": "extensions",
+                            "version": "1.3",
+                        }
+                    ],
+                    "has_storage_buckets": True,
+                    "has_supabase_migrations": True,
+                }
+            if "has_storage_buckets" in sql:
+                return {
+                    "database_name": "postgres",
+                    "table_count": 1,
+                    "tables": [
+                        {
+                            "schema": "public",
+                            "name": "orders",
+                            "row_count": 42,
+                            "row_count_exact": False,
+                            "total_bytes": 8192,
+                        }
+                    ],
+                    "has_storage_buckets": True,
+                }
+            if "from storage.buckets" in sql:
+                return [{"id": "images", "name": "images", "public": True}]
+            raise AssertionError(f"Unexpected SQL: {sql}")
+
+        app.psql_json = fake_psql_json
+        try:
+            plan = app.build_import_plan(
+                {
+                    "database_mode": "schema-and-data",
+                    "source": {
+                        "type": "platform",
+                        "db_url": "postgres://postgres:secret@db.example.supabase.co:5432/postgres",
+                    },
+                    "target": {
+                        "type": "local",
+                        "container": "supabase-db",
+                    },
+                }
+            )
+        finally:
+            app.psql_json = original_psql_json
+
+        self.assertTrue(plan["source"]["database"]["available"])
+        self.assertTrue(plan["target"]["database"]["available"])
+        self.assertEqual(plan["source"]["database"]["table_count"], 1)
+        self.assertEqual(plan["source"]["database"]["storage_bucket_count"], 1)
+        self.assertTrue(plan["feasibility"]["can_run_platform_to_local_now"])
+
+    def test_supabase_account_helpers_use_management_api(self):
+        original_management_api_json = app.management_api_json
+        calls = []
+
+        class Handler:
+            path = "/v1/supabase/projects?organization_id=org_123"
+
+            class Headers:
+                def get(self, key):
+                    if key == "X-Supabase-Access-Token":
+                        return "supabase-token"
+                    return None
+
+            headers = Headers()
+
+        def fake_management_api_json(endpoint, path, method="GET", payload=None):
+            calls.append((endpoint["access_token"], path))
+            return {"projects": [{"ref": "project-ref"}]}
+
+        app.management_api_json = fake_management_api_json
+        try:
+            response = app.list_supabase_projects(Handler())
+        finally:
+            app.management_api_json = original_management_api_json
+
+        self.assertEqual(response["projects"], [{"ref": "project-ref"}])
+        self.assertEqual(calls, [("supabase-token", "/v1/projects?organization_id=org_123")])
 
 
 if __name__ == "__main__":

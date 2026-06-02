@@ -12,7 +12,7 @@ WORKDIR /app
 
 COPY app.py /app/app.py
 COPY sync_api /app/sync_api
-COPY openapi.json /app/openapi.json
+COPY jrp-supabase-slim.json /app/jrp-supabase-slim.json
 COPY branching.md /app/branching.md
 
 ENV SYNC_API_HOST=0.0.0.0

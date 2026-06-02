@@ -4,7 +4,7 @@ from .settings import *
 def _base_openapi_file():
     if OPENAPI_FILE.exists():
         return OPENAPI_FILE
-    local = Path(__file__).resolve().parents[1] / "openapi.json"
+    local = Path(__file__).resolve().parents[1] / "jrp-supabase-slim.json"
     if local.exists():
         return local
     raise FileNotFoundError(f"OpenAPI file not found: {OPENAPI_FILE}")
@@ -297,11 +297,218 @@ def add_branch_openapi(definition):
                     "no_privileges": {"type": "boolean", "default": False},
                 },
             },
+            "ImportPlanRequest": {
+                "type": "object",
+                "properties": {
+                    "database_mode": {
+                        "type": "string",
+                        "enum": ["schema-only", "schema-and-data"],
+                        "default": "schema-only",
+                    },
+                    "include_storage_bucket_metadata": {
+                        "type": "boolean",
+                        "default": True,
+                    },
+                    "include_storage_objects": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "When true, the plan warns that object bytes must be copied "
+                            "through Storage/S3, not database restore."
+                        ),
+                    },
+                    "include_edge_functions": {"type": "boolean", "default": True},
+                    "include_auth_data": {"type": "boolean"},
+                    "exact_rows": {"type": "boolean", "default": False},
+                    "include_columns": {"type": "boolean", "default": False},
+                    "largest_table_limit": {"type": "integer", "default": 20},
+                    "access_token": {
+                        "type": "string",
+                        "description": "Optional Supabase Management API token applied to both sides.",
+                    },
+                    "source": {"$ref": "#/components/schemas/ImportSide"},
+                    "target": {"$ref": "#/components/schemas/ImportSide"},
+                },
+                "required": ["source"],
+            },
+            "ImportSide": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "description": "Logical side type, for example platform or local.",
+                    },
+                    "env": {"type": "string"},
+                    "project_ref": {"type": "string"},
+                    "project_id": {"type": "string"},
+                    "db_url": {"type": "string"},
+                    "container": {"type": "string"},
+                    "user": {"type": "string"},
+                    "reset_user": {"type": "string"},
+                    "db_name": {"type": "string"},
+                    "access_token": {"type": "string"},
+                    "api_base": {"type": "string"},
+                    "functions_api_base": {"type": "string"},
+                },
+            },
+            "ImportPlan": {
+                "type": "object",
+                "additionalProperties": True,
+                "properties": {
+                    "generated_at_ms": {"type": "integer"},
+                    "kind": {"type": "string"},
+                    "control_plane": {
+                        "type": "object",
+                        "properties": {
+                            "state_store": {"type": "string"},
+                            "state_store_kind": {"type": "string"},
+                            "uses_source_database_for_tool_state": {"type": "boolean"},
+                            "uses_target_database_for_tool_state": {"type": "boolean"},
+                        },
+                    },
+                    "options": {"type": "object"},
+                    "source": {"type": "object"},
+                    "target": {"type": "object"},
+                    "warnings": {"type": "array", "items": {"type": "object"}},
+                    "feasibility": {"type": "object"},
+                    "next_recommended_endpoint": {"type": "string"},
+                },
+                "required": [
+                    "generated_at_ms",
+                    "kind",
+                    "control_plane",
+                    "options",
+                    "source",
+                    "target",
+                    "warnings",
+                    "feasibility",
+                ],
+            },
         }
     )
 
     paths.update(
         {
+            "/v1/jrp-supabase-slim.json": {
+                "get": {
+                    "summary": "JRP Supabase Slim OpenAPI definition",
+                    "security": [],
+                    "responses": {
+                        "200": {
+                            "description": "OpenAPI definition for the JRP Supabase Slim control plane",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"type": "object"}
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+            "/v1/openapi.json": {
+                "get": {
+                    "summary": "Compatibility OpenAPI definition alias",
+                    "description": "Deprecated alias. Prefer /v1/jrp-supabase-slim.json.",
+                    "security": [],
+                    "responses": {
+                        "200": {
+                            "description": "OpenAPI definition",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"type": "object"}
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+            "/v1/imports/plan": {
+                "post": {
+                    "summary": "Plan a hosted/local Supabase import without mutating either side",
+                    "description": (
+                        "Inspects configured source and target project/database details "
+                        "and returns feasibility, warnings, and a structured plan. sync-api "
+                        "control-plane state remains separate from source/target Supabase databases."
+                    ),
+                    "security": bearer_auth,
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/ImportPlanRequest"}
+                            }
+                        },
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Import plan",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/ImportPlan"}
+                                }
+                            },
+                        },
+                        "400": error_response,
+                        "401": error_response,
+                    },
+                }
+            },
+            "/v1/supabase/organizations": {
+                "get": {
+                    "summary": "List Supabase organizations for the supplied account token",
+                    "description": (
+                        "Send the Supabase Management API token in X-Supabase-Access-Token "
+                        "or configure SUPABASE_ACCESS_TOKEN."
+                    ),
+                    "security": bearer_auth,
+                    "responses": {"200": {"description": "Organizations", "content": json_content}},
+                }
+            },
+            "/v1/supabase/projects": {
+                "get": {
+                    "summary": "List Supabase projects for the supplied account token",
+                    "security": bearer_auth,
+                    "parameters": [
+                        {
+                            "name": "organization_id",
+                            "in": "query",
+                            "required": False,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {"200": {"description": "Projects", "content": json_content}},
+                }
+            },
+            "/v1/supabase/projects/{ref}": {
+                "get": {
+                    "summary": "Get one Supabase project through the Management API",
+                    "security": bearer_auth,
+                    "parameters": [
+                        {
+                            "name": "ref",
+                            "in": "path",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {"200": {"description": "Project", "content": json_content}},
+                }
+            },
+            "/v1/supabase/projects/{ref}/backups": {
+                "get": {
+                    "summary": "List backups for one Supabase project",
+                    "security": bearer_auth,
+                    "parameters": [
+                        {
+                            "name": "ref",
+                            "in": "path",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {"200": {"description": "Backups", "content": json_content}},
+                }
+            },
             "/v1/branches": {
                 "get": {
                     "summary": "List local Supabase branches",

@@ -5,6 +5,7 @@ from .database import *
 from .edge_functions import *
 from .env_config import *
 from .http_utils import *
+from .import_plan import *
 from .openapi import *
 from .operations import *
 
@@ -39,7 +40,12 @@ class SyncApiHandler(BaseHTTPRequestHandler):
 
     def authenticate(self):
         path = urlparse(self.path).path
-        if path in ("/health", "/v1/openapi.json", "/v1/branching.md"):
+        if path in (
+            "/health",
+            "/v1/jrp-supabase-slim.json",
+            "/v1/openapi.json",
+            "/v1/branching.md",
+        ):
             return True
         if not API_TOKEN:
             self.send_error_json(503, "SYNC_API_TOKEN is not configured")
@@ -125,6 +131,7 @@ class SyncApiHandler(BaseHTTPRequestHandler):
                     "service": "sync-api",
                     "endpoints": [
                         "GET /health",
+                        "GET /v1/jrp-supabase-slim.json",
                         "GET /v1/openapi.json",
                         "GET /v1/branching.md",
                         "GET /v1/environments",
@@ -149,6 +156,11 @@ class SyncApiHandler(BaseHTTPRequestHandler):
                         "POST /v1/environments/{name}/migrations/up",
                         "POST /v1/environments/{name}/reset/source",
                         "POST /v1/environments/{name}/reset/destination",
+                        "GET /v1/supabase/organizations",
+                        "GET /v1/supabase/projects",
+                        "GET /v1/supabase/projects/{ref}",
+                        "GET /v1/supabase/projects/{ref}/backups",
+                        "POST /v1/imports/plan",
                         "GET /v1/branches",
                         "POST /v1/branches",
                         "GET /v1/branches/schemas",
@@ -167,7 +179,7 @@ class SyncApiHandler(BaseHTTPRequestHandler):
             )
             return
 
-        if path == "/v1/openapi.json":
+        if path in ("/v1/jrp-supabase-slim.json", "/v1/openapi.json"):
             self.send_json(200, read_openapi_definition())
             return
 
@@ -412,6 +424,26 @@ class SyncApiHandler(BaseHTTPRequestHandler):
             self.send_json(200, {"jobs": payload})
             return
 
+        if parts == ["v1", "supabase", "organizations"]:
+            self.send_json(200, list_supabase_organizations(self))
+            return
+
+        if parts == ["v1", "supabase", "projects"]:
+            self.send_json(200, list_supabase_projects(self))
+            return
+
+        if len(parts) == 4 and parts[:3] == ["v1", "supabase", "projects"]:
+            self.send_json(200, get_supabase_project(self, parts[3]))
+            return
+
+        if (
+            len(parts) == 5
+            and parts[:3] == ["v1", "supabase", "projects"]
+            and parts[4] == "backups"
+        ):
+            self.send_json(200, list_supabase_project_backups(self, parts[3]))
+            return
+
         if len(parts) == 3 and parts[:2] == ["v1", "jobs"]:
             with jobs_lock:
                 job = jobs.get(parts[2])
@@ -451,6 +483,10 @@ class SyncApiHandler(BaseHTTPRequestHandler):
                     "identity": environment_identity(name, config),
                 },
             )
+            return
+
+        if parts == ["v1", "imports", "plan"]:
+            self.send_json(200, build_import_plan(body))
             return
 
         if parts == ["v1", "branches"]:

@@ -1,6 +1,6 @@
 # Sync API Branching
 
-This document describes the Sync API local branching endpoints and the expected web UX integration. It is served without authentication at `GET /v1/branching.md`, like `GET /v1/openapi.json`.
+This document describes the Sync API local branching endpoints and the expected web UX integration. It is served without authentication at `GET /v1/branching.md`, like `GET /v1/jrp-supabase-slim.json`.
 
 The branch management API snapshots and restores the local Supabase runtime. Branch operations are asynchronous background jobs: create, save, switch, and reset return `202 Accepted` with a `job` object. A web client should poll `GET /v1/jobs/{id}` until the job status is `succeeded` or `failed`, then refresh branch state from `GET /v1/branches`.
 
@@ -15,7 +15,7 @@ Public endpoints:
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Health check. |
-| `GET` | `/v1/openapi.json` | OpenAPI definition. |
+| `GET` | `/v1/jrp-supabase-slim.json` | OpenAPI definition. |
 | `GET` | `/v1/branching.md` | This branching guide. |
 
 All branch and job endpoints require:

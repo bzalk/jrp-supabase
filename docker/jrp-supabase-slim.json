@@ -93,6 +93,13 @@
           "created_at": {
             "type": "string"
           },
+          "data_mode": {
+            "enum": [
+              "schema-and-data",
+              "schema-only"
+            ],
+            "type": "string"
+          },
           "dump_file": {
             "type": "string"
           },
@@ -112,6 +119,9 @@
             "type": "boolean"
           },
           "includes_storage_files": {
+            "type": "boolean"
+          },
+          "includes_table_data": {
             "type": "boolean"
           },
           "merged_at": {
@@ -185,6 +195,14 @@
             "schemas": [
               "public"
             ]
+          },
+          {
+            "data_mode": "schema-only",
+            "mode": "app-only",
+            "name": "empty-cart",
+            "schemas": [
+              "public"
+            ]
           }
         ],
         "properties": {
@@ -195,10 +213,24 @@
           "app_only": {
             "type": "boolean"
           },
+          "data_mode": {
+            "default": "schema-and-data",
+            "description": "schema-only creates an empty-data branch by dumping schema without table rows. Later saves include table data by default unless include_table_data is explicitly false.",
+            "enum": [
+              "schema-and-data",
+              "schema-only"
+            ],
+            "type": "string"
+          },
           "full": {
             "type": "boolean"
           },
           "include_storage_files": {
+            "type": "boolean"
+          },
+          "include_table_data": {
+            "default": true,
+            "description": "When false, creates the branch snapshot with schema only and no table rows. This is incompatible with include_storage_files true.",
             "type": "boolean"
           },
           "mode": {
@@ -287,7 +319,19 @@
       },
       "BranchSaveRequest": {
         "properties": {
+          "data_mode": {
+            "enum": [
+              "schema-and-data",
+              "schema-only"
+            ],
+            "type": "string"
+          },
           "include_storage_files": {
+            "type": "boolean"
+          },
+          "include_table_data": {
+            "default": true,
+            "description": "Defaults true so data added to a schema-only branch is saved normally. Set false only to overwrite the snapshot as schema-only.",
             "type": "boolean"
           },
           "no_owner": {
@@ -1841,6 +1885,162 @@
         "required": [
           "name"
         ],
+        "type": "object"
+      },
+      "ImportPlan": {
+        "additionalProperties": true,
+        "properties": {
+          "control_plane": {
+            "properties": {
+              "state_store": {
+                "type": "string"
+              },
+              "state_store_kind": {
+                "type": "string"
+              },
+              "uses_source_database_for_tool_state": {
+                "type": "boolean"
+              },
+              "uses_target_database_for_tool_state": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "feasibility": {
+            "type": "object"
+          },
+          "generated_at_ms": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "next_recommended_endpoint": {
+            "type": "string"
+          },
+          "options": {
+            "type": "object"
+          },
+          "source": {
+            "type": "object"
+          },
+          "target": {
+            "type": "object"
+          },
+          "warnings": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at_ms",
+          "kind",
+          "control_plane",
+          "options",
+          "source",
+          "target",
+          "warnings",
+          "feasibility"
+        ],
+        "type": "object"
+      },
+      "ImportPlanRequest": {
+        "properties": {
+          "access_token": {
+            "description": "Optional Supabase Management API token applied to both sides.",
+            "type": "string"
+          },
+          "database_mode": {
+            "default": "schema-only",
+            "enum": [
+              "schema-only",
+              "schema-and-data"
+            ],
+            "type": "string"
+          },
+          "exact_rows": {
+            "default": false,
+            "type": "boolean"
+          },
+          "include_auth_data": {
+            "type": "boolean"
+          },
+          "include_columns": {
+            "default": false,
+            "type": "boolean"
+          },
+          "include_edge_functions": {
+            "default": true,
+            "type": "boolean"
+          },
+          "include_storage_bucket_metadata": {
+            "default": true,
+            "type": "boolean"
+          },
+          "include_storage_objects": {
+            "default": false,
+            "description": "When true, the plan warns that object bytes must be copied through Storage/S3, not database restore.",
+            "type": "boolean"
+          },
+          "largest_table_limit": {
+            "default": 20,
+            "type": "integer"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ImportSide"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ImportSide"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "type": "object"
+      },
+      "ImportSide": {
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "api_base": {
+            "type": "string"
+          },
+          "container": {
+            "type": "string"
+          },
+          "db_name": {
+            "type": "string"
+          },
+          "db_url": {
+            "type": "string"
+          },
+          "env": {
+            "type": "string"
+          },
+          "functions_api_base": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "project_ref": {
+            "type": "string"
+          },
+          "reset_user": {
+            "type": "string"
+          },
+          "type": {
+            "description": "Logical side type, for example platform or local.",
+            "type": "string"
+          },
+          "user": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "IndexStats": {
@@ -4126,6 +4326,59 @@
         "summary": "Validate source and target connectivity"
       }
     },
+    "/v1/imports/plan": {
+      "post": {
+        "description": "Inspects configured source and target project/database details and returns feasibility, warnings, and a structured plan. sync-api control-plane state remains separate from source/target Supabase databases.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPlan"
+                }
+              }
+            },
+            "description": "Import plan"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Plan a hosted/local Supabase import without mutating either side"
+      }
+    },
     "/v1/jobs": {
       "get": {
         "responses": {
@@ -4194,7 +4447,7 @@
         }
       ]
     },
-    "/v1/openapi.json": {
+    "/v1/jrp-supabase-slim.json": {
       "get": {
         "responses": {
           "200": {
@@ -4205,10 +4458,149 @@
                 }
               }
             },
-            "description": "OpenAPI 3.1 JSON document"
+            "description": "OpenAPI definition for the JRP Supabase Slim control plane"
           }
         },
-        "summary": "OpenAPI definition"
+        "security": [],
+        "summary": "JRP Supabase Slim OpenAPI definition"
+      }
+    },
+    "/v1/openapi.json": {
+      "get": {
+        "description": "Deprecated alias. Prefer /v1/jrp-supabase-slim.json.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAPI definition"
+          }
+        },
+        "security": [],
+        "summary": "Compatibility OpenAPI definition alias"
+      }
+    },
+    "/v1/supabase/organizations": {
+      "get": {
+        "description": "Send the Supabase Management API token in X-Supabase-Access-Token or configure SUPABASE_ACCESS_TOKEN.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Organizations"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List Supabase organizations for the supplied account token"
+      }
+    },
+    "/v1/supabase/projects": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "organization_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Projects"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List Supabase projects for the supplied account token"
+      }
+    },
+    "/v1/supabase/projects/{ref}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Project"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Get one Supabase project through the Management API"
+      }
+    },
+    "/v1/supabase/projects/{ref}/backups": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Backups"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List backups for one Supabase project"
       }
     }
   },
