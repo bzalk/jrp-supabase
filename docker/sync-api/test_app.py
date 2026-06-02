@@ -695,6 +695,7 @@ class BranchingDocumentationTests(unittest.TestCase):
 
         self.assertEqual(route["security"], [])
         self.assertIn("application/json", route["responses"]["200"]["content"])
+        self.assertNotIn("/v1/openapi.json", definition["paths"])
 
     def test_openapi_exposes_public_branching_guide(self):
         definition = app.read_openapi_definition()

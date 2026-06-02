@@ -43,7 +43,6 @@ class SyncApiHandler(BaseHTTPRequestHandler):
         if path in (
             "/health",
             "/v1/jrp-supabase-slim.json",
-            "/v1/openapi.json",
             "/v1/branching.md",
         ):
             return True
@@ -132,7 +131,6 @@ class SyncApiHandler(BaseHTTPRequestHandler):
                     "endpoints": [
                         "GET /health",
                         "GET /v1/jrp-supabase-slim.json",
-                        "GET /v1/openapi.json",
                         "GET /v1/branching.md",
                         "GET /v1/environments",
                         "POST /v1/environments",
@@ -179,7 +177,7 @@ class SyncApiHandler(BaseHTTPRequestHandler):
             )
             return
 
-        if path in ("/v1/jrp-supabase-slim.json", "/v1/openapi.json"):
+        if path == "/v1/jrp-supabase-slim.json":
             self.send_json(200, read_openapi_definition())
             return
 

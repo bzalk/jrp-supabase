@@ -4465,25 +4465,6 @@
         "summary": "JRP Supabase Slim OpenAPI definition"
       }
     },
-    "/v1/openapi.json": {
-      "get": {
-        "description": "Deprecated alias. Prefer /v1/jrp-supabase-slim.json.",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            },
-            "description": "OpenAPI definition"
-          }
-        },
-        "security": [],
-        "summary": "Compatibility OpenAPI definition alias"
-      }
-    },
     "/v1/supabase/organizations": {
       "get": {
         "description": "Send the Supabase Management API token in X-Supabase-Access-Token or configure SUPABASE_ACCESS_TOKEN.",

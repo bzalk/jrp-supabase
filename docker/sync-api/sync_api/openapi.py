@@ -27,6 +27,7 @@ def add_branch_openapi(definition):
         }
     }
     paths = definition.setdefault("paths", {})
+    paths.pop("/v1/openapi.json", None)
     schemas = definition.setdefault("components", {}).setdefault("schemas", {})
     parameters = definition["components"].setdefault("parameters", {})
 
@@ -396,23 +397,6 @@ def add_branch_openapi(definition):
                     "responses": {
                         "200": {
                             "description": "OpenAPI definition for the JRP Supabase Slim control plane",
-                            "content": {
-                                "application/json": {
-                                    "schema": {"type": "object"}
-                                }
-                            },
-                        }
-                    },
-                }
-            },
-            "/v1/openapi.json": {
-                "get": {
-                    "summary": "Compatibility OpenAPI definition alias",
-                    "description": "Deprecated alias. Prefer /v1/jrp-supabase-slim.json.",
-                    "security": [],
-                    "responses": {
-                        "200": {
-                            "description": "OpenAPI definition",
                             "content": {
                                 "application/json": {
                                     "schema": {"type": "object"}

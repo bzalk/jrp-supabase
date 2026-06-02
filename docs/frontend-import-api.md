@@ -39,7 +39,6 @@ Public endpoints:
 ```text
 GET /health
 GET /v1/jrp-supabase-slim.json
-GET /v1/openapi.json
 GET /v1/branching.md
 ```
 
