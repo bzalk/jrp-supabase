@@ -1,0 +1,27 @@
+.DS_Store
+*.log
+__pycache__/
+*.py[cod]
+
+# Local secrets
+.env
+docker/.env
+
+# Runtime state
+docker/branches/
+docker/exported-migrations/
+docker/instances/
+docker/supabase-instance-install/
+docker/.codex
+docker/.codex/
+docker/docker-compose.override.yml
+docker/volumes/authelia/
+docker/volumes/db/data/
+docker/volumes/storage/
+
+# Tooling/cache output
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+node_modules/
