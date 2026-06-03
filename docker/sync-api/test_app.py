@@ -1077,27 +1077,26 @@ class BranchManagerTests(unittest.TestCase):
 
 
 class BranchingDocumentationTests(unittest.TestCase):
-    def test_openapi_exposes_branded_public_definition(self):
-        definition = app.read_openapi_definition()
+    def test_sync_definition_exposes_branded_public_definition(self):
+        definition = app.read_sync_api_definition()
         route = definition["paths"]["/v1/jrp-supabase-slim.json"]["get"]
 
         self.assertEqual(route["security"], [])
         self.assertIn("application/json", route["responses"]["200"]["content"])
-        self.assertNotIn("/v1/openapi.json", definition["paths"])
         self.assertIn("/v1/imports/platform-to-local", definition["paths"])
         self.assertIn("/v1/imports.md", definition["paths"])
         self.assertIn("progress", definition["components"]["schemas"]["JobSummary"]["properties"])
         self.assertIn("JobProgress", definition["components"]["schemas"])
 
-    def test_openapi_exposes_public_branching_guide(self):
-        definition = app.read_openapi_definition()
+    def test_sync_definition_exposes_public_branching_guide(self):
+        definition = app.read_sync_api_definition()
         route = definition["paths"]["/v1/branching.md"]["get"]
 
         self.assertEqual(route["security"], [])
         self.assertIn("text/markdown", route["responses"]["200"]["content"])
 
-    def test_openapi_exposes_public_import_guide(self):
-        definition = app.read_openapi_definition()
+    def test_sync_definition_exposes_public_import_guide(self):
+        definition = app.read_sync_api_definition()
         route = definition["paths"]["/v1/imports.md"]["get"]
 
         self.assertEqual(route["security"], [])

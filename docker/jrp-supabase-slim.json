@@ -4631,11 +4631,11 @@
                 }
               }
             },
-            "description": "OpenAPI definition for the JRP Supabase Slim control plane"
+            "description": "Sync API definition for the JRP Supabase Slim control plane"
           }
         },
         "security": [],
-        "summary": "JRP Supabase Slim OpenAPI definition"
+        "summary": "JRP Supabase Slim Sync API definition"
       }
     },
     "/v1/supabase/organizations": {

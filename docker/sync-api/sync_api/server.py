@@ -7,7 +7,7 @@ from .env_config import *
 from .http_utils import *
 from .import_execute import *
 from .import_plan import *
-from .openapi import *
+from .sync_definition import *
 from .operations import *
 
 class SyncApiHandler(BaseHTTPRequestHandler):
@@ -182,7 +182,7 @@ class SyncApiHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/v1/jrp-supabase-slim.json":
-            self.send_json(200, read_openapi_definition())
+            self.send_json(200, read_sync_api_definition())
             return
 
         if path == "/v1/branching.md":

@@ -8,7 +8,7 @@ It is served without auth at:
 GET /v1/imports.md
 ```
 
-The OpenAPI definition is served without auth at:
+The Sync API definition is served without auth at:
 
 ```text
 GET /v1/jrp-supabase-slim.json

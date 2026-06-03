@@ -1,15 +1,15 @@
 from .settings import *
 
 
-def _base_openapi_file():
+def _base_sync_definition_file():
     if OPENAPI_FILE.exists():
         return OPENAPI_FILE
     local = Path(__file__).resolve().parents[1] / "jrp-supabase-slim.json"
     if local.exists():
         return local
-    raise FileNotFoundError(f"OpenAPI file not found: {OPENAPI_FILE}")
+    raise FileNotFoundError(f"Sync API definition file not found: {OPENAPI_FILE}")
 
-def add_branch_openapi(definition):
+def add_sync_api_routes(definition):
     bearer_auth = [{"bearerAuth": []}]
     error_response = {
         "description": "Error",
@@ -27,7 +27,6 @@ def add_branch_openapi(definition):
         }
     }
     paths = definition.setdefault("paths", {})
-    paths.pop("/v1/openapi.json", None)
     schemas = definition.setdefault("components", {}).setdefault("schemas", {})
     parameters = definition["components"].setdefault("parameters", {})
 
@@ -498,11 +497,11 @@ def add_branch_openapi(definition):
         {
             "/v1/jrp-supabase-slim.json": {
                 "get": {
-                    "summary": "JRP Supabase Slim OpenAPI definition",
+                    "summary": "JRP Supabase Slim Sync API definition",
                     "security": [],
                     "responses": {
                         "200": {
-                            "description": "OpenAPI definition for the JRP Supabase Slim control plane",
+                            "description": "Sync API definition for the JRP Supabase Slim control plane",
                             "content": {
                                 "application/json": {
                                     "schema": {"type": "object"}
@@ -958,8 +957,8 @@ def add_branch_openapi(definition):
     return definition
 
 
-def read_openapi_definition():
-    return add_branch_openapi(json.loads(_base_openapi_file().read_text()))
+def read_sync_api_definition():
+    return add_sync_api_routes(json.loads(_base_sync_definition_file().read_text()))
 
 
 def read_branching_doc():

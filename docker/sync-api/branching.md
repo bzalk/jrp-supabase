@@ -15,7 +15,7 @@ Public endpoints:
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Health check. |
-| `GET` | `/v1/jrp-supabase-slim.json` | OpenAPI definition. |
+| `GET` | `/v1/jrp-supabase-slim.json` | Sync API definition. |
 | `GET` | `/v1/branching.md` | This branching guide. |
 
 All branch and job endpoints require:

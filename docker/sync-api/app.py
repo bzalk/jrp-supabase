@@ -26,7 +26,7 @@ import sync_api.import_plan as _import_plan
 import sync_api.management as _management
 import sync_api.migration_display as _migration_display
 import sync_api.migrations as _migrations
-import sync_api.openapi as _openapi
+import sync_api.sync_definition as _sync_definition
 import sync_api.operations as _operations
 import sync_api.restore_filter as _restore_filter
 import sync_api.server as _server
@@ -39,7 +39,7 @@ from sync_api.env_config import *
 from sync_api.http_utils import *
 from sync_api.import_execute import *
 from sync_api.import_plan import *
-from sync_api.openapi import *
+from sync_api.sync_definition import *
 from sync_api.db import *
 from sync_api.branches import *
 from sync_api.database import *
@@ -56,7 +56,7 @@ _COMPONENT_MODULES = (
     _http_utils,
     _import_execute,
     _import_plan,
-    _openapi,
+    _sync_definition,
     _db,
     _db_core,
     _db_sql,

@@ -7,7 +7,7 @@ It intentionally does not contain the full upstream Supabase monorepo. The deplo
 ## What Is Included
 
 - `docker/docker-compose.yml` - self-hosted Supabase stack with JRP additions
-- `docker/sync-api/` - Python API for environments, migrations, branches, OpenAPI, and branching docs
+- `docker/sync-api/` - Python API for environments, migrations, branches, the Sync API definition, and branching docs
 - `docker/studio-mcp/` - local Studio image patch that exposes JRP MCP tools
 - `docker/utils/` - deployment, migration, branch, and proxy helper scripts
 - `docker/volumes/` - static Supabase config files required by the compose stack
