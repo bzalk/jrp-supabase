@@ -19,13 +19,13 @@ services:
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.supabase-studio.rule=Host(`studio.jamrockdev.com`)
+      - traefik.http.routers.supabase-studio.rule=Host(`${STUDIO_DOMAIN:-studio.jamrockdev.com}`)
       - traefik.http.routers.supabase-studio.entrypoints=websecure
       - traefik.http.routers.supabase-studio.tls.certresolver=letsencrypt
       - traefik.http.routers.supabase-studio.middlewares=authelia-forwardauth@docker
       - traefik.http.routers.supabase-studio.service=supabase-studio
       - traefik.http.services.supabase-studio.loadbalancer.server.port=3000
-      - traefik.http.routers.supabase-mcp.rule=Host(`supabase.jamrockdev.com`) && Path(`/mcp`)
+      - traefik.http.routers.supabase-mcp.rule=Host(`${API_DOMAIN:-supabase.jamrockdev.com}`) && Path(`/mcp`)
       - traefik.http.routers.supabase-mcp.entrypoints=websecure
       - traefik.http.routers.supabase-mcp.tls.certresolver=letsencrypt
       - traefik.http.routers.supabase-mcp.priority=1000
@@ -96,7 +96,7 @@ services:
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.authelia.rule=Host(`auth.jamrockdev.com`)
+      - traefik.http.routers.authelia.rule=Host(`${AUTH_DOMAIN:-auth.jamrockdev.com}`)
       - traefik.http.routers.authelia.entrypoints=websecure
       - traefik.http.routers.authelia.tls.certresolver=letsencrypt
       - traefik.http.services.authelia.loadbalancer.server.port=9091
@@ -130,7 +130,7 @@ services:
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.supabase.rule=Host(`supabase.jamrockdev.com`)
+      - traefik.http.routers.supabase.rule=Host(`${API_DOMAIN:-supabase.jamrockdev.com}`)
       - traefik.http.routers.supabase.entrypoints=websecure
       - traefik.http.routers.supabase.tls.certresolver=letsencrypt
       - traefik.http.services.supabase.loadbalancer.server.port=8000
@@ -182,7 +182,7 @@ services:
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.sync-api.rule=Host(`sync-api.jamrockdev.com`)
+      - traefik.http.routers.sync-api.rule=Host(`${SYNC_API_DOMAIN:-sync-api.jamrockdev.com}`)
       - traefik.http.routers.sync-api.entrypoints=websecure
       - traefik.http.routers.sync-api.tls.certresolver=letsencrypt
       - traefik.http.services.sync-api.loadbalancer.server.port=8080

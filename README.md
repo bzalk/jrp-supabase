@@ -34,6 +34,11 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
+## VPS Bootstrap
+
+For a small provider post-install script that bootstraps Docker, Supabase, the
+Sync API, and Traefik, see [docs/vps-post-install.md](docs/vps-post-install.md).
+
 ## Tests
 
 ```bash
