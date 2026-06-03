@@ -259,7 +259,8 @@ The current database import uses `pg_dump` and `pg_restore`, so the API reports 
 ## Current Limitations
 
 - `schema-and-data` execution requires `include_auth_data: true`; selective auth exclusion is not implemented yet.
-- Storage object bytes are not copied by this endpoint.
+- Storage bucket metadata can be copied through `storage.buckets`.
+- Storage object bytes, object rows, and Storage internal upload/index tables are not copied by this endpoint.
 - `include_storage_objects: true` is rejected until the Storage/S3 copy workflow exists.
 - Edge function copy is supported only when source/target edge function metadata is configured.
 - Progress is phase-level, not exact table-by-table copy progress.

@@ -540,7 +540,9 @@ def add_branch_openapi(definition):
                         "Starts a long-running job that imports a hosted Supabase database "
                         "into a local/self-hosted target. First implementation copies the "
                         "database through pg_dump/pg_restore and can copy Edge Functions "
-                        "when configured. Storage object bytes are not copied by this endpoint."
+                        "when configured. Storage bucket metadata can be copied, but "
+                        "Storage object bytes, object rows, and internal upload/index tables "
+                        "are not copied by this endpoint."
                     ),
                     "security": bearer_auth,
                     "requestBody": {

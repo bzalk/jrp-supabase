@@ -278,6 +278,16 @@ def reset_command_summary(config, env_name, target_role, options):
     return command
 
 
+def should_restore_managed_table_data(schema_name, table_name, config, options):
+    if schema_name == "storage":
+        return (
+            table_name == "buckets"
+            and config.get("sync_storage_buckets", True) is not False
+            and options.get("include_storage_bucket_metadata", True) is not False
+        )
+    return True
+
+
 def reset_database_copy(job_id, config, env_name, source_role, target_role, options):
     source_endpoint = reset_database_endpoint_from_config(config, source_role)
     target_endpoint = reset_database_endpoint_from_config(config, target_role)
@@ -350,6 +360,13 @@ def reset_database_copy(job_id, config, env_name, source_role, target_role, opti
                 for item in managed_table_privileges
                 if item.get("can_insert") and item.get("can_truncate")
             }
+            restore_managed_table_data = {
+                table_key
+                for table_key in resettable_managed_tables
+                if should_restore_managed_table_data(
+                    table_key[0], table_key[1], config, options
+                )
+            }
             skipped_managed_tables = [
                 f"{item['schema']}.{item['table']}"
                 for item in managed_table_privileges
@@ -362,6 +379,22 @@ def reset_database_copy(job_id, config, env_name, source_role, target_role, opti
                         "Skipping protected managed tables that this connection "
                         "cannot reset: "
                         + ", ".join(skipped_managed_tables)
+                        + "\n"
+                    ),
+                )
+            skipped_managed_table_data = sorted(
+                resettable_managed_tables - restore_managed_table_data
+            )
+            if skipped_managed_table_data:
+                append_job_output(
+                    job_id,
+                    (
+                        "Skipping managed table data that is not safe to restore "
+                        "for this import mode: "
+                        + ", ".join(
+                            f"{schema_name}.{table_name}"
+                            for schema_name, table_name in skipped_managed_table_data
+                        )
                         + "\n"
                     ),
                 )
@@ -429,7 +462,7 @@ def reset_database_copy(job_id, config, env_name, source_role, target_role, opti
                 list_path,
                 managed_schemas,
                 preserved_schemas,
-                resettable_managed_tables,
+                restore_managed_table_data,
                 resettable_managed_sequences,
                 existing_extensions,
                 existing_event_triggers,
@@ -442,7 +475,7 @@ def reset_database_copy(job_id, config, env_name, source_role, target_role, opti
                 (
                     "Filtered restore list for platform-owned schemas; "
                     f"skipped {removed_count} protected/schema-definition items "
-                    f"and kept {len(resettable_managed_tables)} resettable managed tables "
+                    f"and kept {len(restore_managed_table_data)} managed table-data items "
                     f"and {len(resettable_managed_sequences)} resettable managed sequences. "
                     f"Preserved existing target schemas: {', '.join(preserved_schemas)}. "
                     "Skipped hosted platform schemas from source dump: "

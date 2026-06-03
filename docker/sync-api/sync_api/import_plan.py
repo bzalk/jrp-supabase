@@ -323,7 +323,8 @@ def build_import_warnings(source_db, target_db, options):
                 "code": "storage_objects_not_included",
                 "message": (
                     "Storage bucket metadata can be planned from the database, but "
-                    "storage object bytes are excluded unless include_storage_objects is true."
+                    "storage object bytes, object rows, and internal Storage tables are "
+                    "excluded unless a Storage/S3 object copy workflow is used."
                 ),
                 "severity": "info",
             }

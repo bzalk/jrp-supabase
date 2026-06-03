@@ -270,6 +270,76 @@ class OperationsTests(unittest.TestCase):
         self.assertNotIn("--clean", restore_command)
         self.assertIn("-c session_replication_role=replica", restore_command)
 
+    def test_managed_storage_restore_only_allows_bucket_metadata(self):
+        self.assertTrue(
+            app.should_restore_managed_table_data(
+                "storage",
+                "buckets",
+                {"sync_storage_buckets": True},
+                {"include_storage_bucket_metadata": True},
+            )
+        )
+        self.assertFalse(
+            app.should_restore_managed_table_data(
+                "storage",
+                "objects",
+                {"sync_storage_buckets": True},
+                {"include_storage_bucket_metadata": True},
+            )
+        )
+        self.assertFalse(
+            app.should_restore_managed_table_data(
+                "storage",
+                "s3_multipart_uploads",
+                {"sync_storage_buckets": True},
+                {"include_storage_bucket_metadata": True},
+            )
+        )
+        self.assertFalse(
+            app.should_restore_managed_table_data(
+                "storage",
+                "buckets",
+                {"sync_storage_buckets": False},
+                {"include_storage_bucket_metadata": True},
+            )
+        )
+        self.assertTrue(
+            app.should_restore_managed_table_data(
+                "auth",
+                "users",
+                {},
+                {},
+            )
+        )
+
+    def test_restore_filter_skips_storage_internal_table_data(self):
+        original_archive_list = app.restore_archive_list
+        with tempfile.TemporaryDirectory() as tmpdir:
+            list_path = Path(tmpdir) / "restore.list"
+            app.restore_archive_list = lambda archive_path: [
+                "1; 123 456 TABLE DATA storage buckets postgres",
+                "2; 123 456 TABLE DATA storage objects postgres",
+                "3; 123 456 TABLE DATA storage s3_multipart_uploads postgres",
+                "4; 123 456 TABLE DATA public menu_items postgres",
+            ]
+            try:
+                removed = app.write_filtered_restore_list(
+                    "archive.dump",
+                    list_path,
+                    managed_schemas=["storage"],
+                    managed_table_data_keys={("storage", "buckets")},
+                )
+            finally:
+                app.restore_archive_list = original_archive_list
+
+            output = list_path.read_text()
+
+        self.assertEqual(removed, 2)
+        self.assertIn("1; 123 456 TABLE DATA storage buckets postgres", output)
+        self.assertIn(";2; 123 456 TABLE DATA storage objects postgres", output)
+        self.assertIn(";3; 123 456 TABLE DATA storage s3_multipart_uploads postgres", output)
+        self.assertIn("4; 123 456 TABLE DATA public menu_items postgres", output)
+
     def test_restore_filter_skips_platform_extensions(self):
         original_archive_list = app.restore_archive_list
         with tempfile.TemporaryDirectory() as tmpdir:
