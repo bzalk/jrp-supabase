@@ -155,6 +155,118 @@ class AuditTests(unittest.TestCase):
         self.assertIn("OK", output)
 
 
+class OperationsTests(unittest.TestCase):
+    def test_container_reset_preserves_non_droppable_platform_schemas(self):
+        original_tmp_dir = app.RESET_TMP_DIR
+        original_dump = app.run_logged_command_to_file
+        original_psql_json = app.psql_json
+        original_sql = app.run_logged_sql
+        original_command = app.run_logged_command
+        original_filter = app.write_filtered_restore_list
+        calls = []
+
+        def fake_dump(job_id, command, output_path):
+            calls.append(("dump", command, output_path))
+            Path(output_path).write_bytes(b"dump")
+
+        def fake_psql_json(endpoint, sql):
+            calls.append(("psql_json", endpoint, sql))
+            if "pg_namespace n" in sql and "can_drop" in sql:
+                return [
+                    {"schema": "public", "owner": "postgres", "can_drop": True},
+                    {"schema": "_realtime", "owner": "supabase_admin", "can_drop": False},
+                ]
+            if "has_table_privilege" in sql:
+                return []
+            if "has_sequence_privilege" in sql:
+                return []
+            if "from pg_namespace n" in sql:
+                return ["_realtime", "public"]
+            if "from pg_extension" in sql:
+                return ["pgcrypto"]
+            if "from pg_event_trigger" in sql:
+                return []
+            if "from pg_publication" in sql:
+                return []
+            raise AssertionError(f"Unexpected SQL: {sql}")
+
+        def fake_sql(job_id, endpoint, sql):
+            calls.append(("sql", endpoint, sql))
+
+        def fake_command(job_id, command, input_path=None):
+            calls.append(("command", command, input_path))
+
+        def fake_filter(
+            archive_path,
+            list_path,
+            managed_schemas,
+            preserved_schemas=None,
+            managed_table_data_keys=None,
+            managed_sequence_set_keys=None,
+            existing_extensions=None,
+            existing_event_triggers=None,
+            existing_publications=None,
+            skipped_source_schemas=None,
+        ):
+            calls.append(
+                (
+                    "filter",
+                    managed_schemas,
+                    preserved_schemas,
+                    existing_extensions,
+                    skipped_source_schemas,
+                )
+            )
+            Path(list_path).write_text("filtered\n")
+            return 3
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            app.RESET_TMP_DIR = Path(tmpdir)
+            app.run_logged_command_to_file = fake_dump
+            app.psql_json = fake_psql_json
+            app.run_logged_sql = fake_sql
+            app.run_logged_command = fake_command
+            app.write_filtered_restore_list = fake_filter
+            try:
+                app.reset_database_copy(
+                    "job-id",
+                    {
+                        "source_db_url": "postgres://source.example/postgres",
+                        "target_container": "supabase-db",
+                        "target_user": "postgres",
+                        "target_db_name": "postgres",
+                    },
+                    "local",
+                    "source",
+                    "target",
+                    {
+                        "include_table_data": True,
+                        "no_owner": True,
+                        "no_privileges": True,
+                        "drop_target_schemas": True,
+                    },
+                )
+            finally:
+                app.RESET_TMP_DIR = original_tmp_dir
+                app.run_logged_command_to_file = original_dump
+                app.psql_json = original_psql_json
+                app.run_logged_sql = original_sql
+                app.run_logged_command = original_command
+                app.write_filtered_restore_list = original_filter
+
+        preclean_sql = next(call[2] for call in calls if call[0] == "sql")
+        restore_command = next(call[1] for call in calls if call[0] == "command")
+        filter_call = next(call for call in calls if call[0] == "filter")
+
+        self.assertIn("pg_has_role(n.nspowner, 'MEMBER')", preclean_sql)
+        self.assertEqual(filter_call[1], ["_realtime"])
+        self.assertIn("_realtime", filter_call[2])
+        self.assertIn("pgcrypto", filter_call[3])
+        self.assertIn("_realtime", filter_call[4])
+        self.assertIn("--use-list", restore_command)
+        self.assertNotIn("--clean", restore_command)
+
+
 class BranchManagerTests(unittest.TestCase):
     def test_create_options_support_app_only_flag_and_schemas(self):
         options = app.parse_branch_create_options(

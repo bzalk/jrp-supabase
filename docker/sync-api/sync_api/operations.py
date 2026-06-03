@@ -316,9 +316,7 @@ def reset_database_copy(job_id, config, env_name, source_role, target_role, opti
             for item in schema_ownership
             if not item.get("can_drop")
         ]
-        use_managed_schema_restore = (
-            target_endpoint["kind"] == "url" and bool(managed_schemas)
-        )
+        use_managed_schema_restore = bool(managed_schemas)
 
         if options.get("drop_target_schemas", True):
             append_job_output(
