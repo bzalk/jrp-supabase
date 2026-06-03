@@ -502,6 +502,30 @@ class BranchManagerTests(unittest.TestCase):
                 app.BRANCHES_DIR = original_branches_dir
                 app.BRANCH_ACTIVE_FILE = original_active_file
 
+    def test_snapshot_migration_ledger_writes_exported_migrations(self):
+        original_psql_json = app.psql_json
+        calls = []
+
+        def fake_psql_json(endpoint, sql):
+            calls.append((endpoint, sql))
+            return [{"version": "202606030001", "name": "baseline"}]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "schema_migrations.json"
+            app.psql_json = fake_psql_json
+            try:
+                migrations = app.snapshot_migration_ledger(
+                    "missing-job",
+                    {"kind": "container", "container": "supabase-db"},
+                    output_path,
+                )
+            finally:
+                app.psql_json = original_psql_json
+
+            self.assertEqual(migrations, [{"version": "202606030001", "name": "baseline"}])
+            self.assertEqual(app.json.loads(output_path.read_text()), migrations)
+            self.assertIn("schema_migrations", calls[0][1])
+
     def test_create_options_reject_ambiguous_mode(self):
         with self.assertRaises(ValueError):
             app.parse_branch_create_options(
