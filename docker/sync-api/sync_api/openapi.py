@@ -409,6 +409,16 @@ def add_branch_openapi(definition):
                             "reset_database": {"type": "boolean", "default": True},
                             "reset_edge_functions": {"type": "boolean"},
                             "prune_edge_functions": {"type": "boolean", "default": True},
+                            "clear_branches": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": (
+                                    "When reset_database is true, clear local branch "
+                                    "snapshots after a successful platform-to-local import "
+                                    "so stale branches from the previous local database are "
+                                    "not shown."
+                                ),
+                            },
                             "drop_target_schemas": {"type": "boolean", "default": True},
                             "no_owner": {"type": "boolean", "default": True},
                             "no_privileges": {"type": "boolean", "default": True},

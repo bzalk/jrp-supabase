@@ -1,5 +1,6 @@
 from .settings import *
 from .audit import append_job_output, start_job, update_job_progress
+from .branch_core import clear_branch_registry
 from .http_utils import parse_bool_body
 from .import_plan import (
     build_import_plan,
@@ -44,6 +45,7 @@ def parse_platform_to_local_options(body):
         "no_owner": parse_bool_body(body, "no_owner", True),
         "no_privileges": parse_bool_body(body, "no_privileges", True),
         "include_table_data": options["database_mode"] == "schema-and-data",
+        "clear_branches": parse_bool_body(body, "clear_branches", True),
         "schemas": body.get("schemas") or [],
     }
 
@@ -216,6 +218,20 @@ def run_platform_to_local_job(job_id, body):
         )
         reset_database_copy(job_id, config, config["name"], "source", "target", options)
         update_job_progress(job_id, "database_imported", 75, "Database import completed")
+        if options["clear_branches"]:
+            removed_count = clear_branch_registry()
+            append_job_output(
+                job_id,
+                (
+                    "Cleared local branch registry after platform-to-local import "
+                    f"({removed_count} entr{'y' if removed_count == 1 else 'ies'} removed).\n"
+                ),
+            )
+        else:
+            append_job_output(
+                job_id,
+                "Local branch registry preserved by clear_branches=false\n",
+            )
     else:
         append_job_output(job_id, "Database import disabled by reset_database=false\n")
         update_job_progress(job_id, "database_skipped", 75, "Database import skipped")

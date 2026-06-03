@@ -243,3 +243,18 @@ def list_branch_metadata():
         metadata["name"] = item.name
         branches.append(metadata)
     return branches
+
+
+def clear_branch_registry():
+    with branch_operation_lock:
+        ensure_branches_dir()
+        removed = 0
+        for item in BRANCHES_DIR.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+                removed += 1
+            else:
+                item.unlink()
+                removed += 1
+        BRANCH_ACTIVE_FILE.unlink(missing_ok=True)
+        return removed

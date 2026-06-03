@@ -479,6 +479,29 @@ class BranchManagerTests(unittest.TestCase):
 
         self.assertTrue(options["include_table_data"])
 
+    def test_clear_branch_registry_removes_snapshots_and_active_branch(self):
+        original_branches_dir = app.BRANCHES_DIR
+        original_active_file = app.BRANCH_ACTIVE_FILE
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            app.BRANCHES_DIR = root / "branches"
+            app.BRANCH_ACTIVE_FILE = root / ".branches-active"
+            try:
+                (app.BRANCHES_DIR / "feature-cart").mkdir(parents=True)
+                (app.BRANCHES_DIR / "feature-cart" / "metadata.json").write_text("{}")
+                (app.BRANCHES_DIR / "main").mkdir()
+                (app.BRANCHES_DIR / "main" / "metadata.json").write_text("{}")
+                app.BRANCH_ACTIVE_FILE.write_text("feature-cart\n")
+
+                removed_count = app.clear_branch_registry()
+
+                self.assertEqual(removed_count, 2)
+                self.assertEqual(list(app.BRANCHES_DIR.iterdir()), [])
+                self.assertFalse(app.BRANCH_ACTIVE_FILE.exists())
+            finally:
+                app.BRANCHES_DIR = original_branches_dir
+                app.BRANCH_ACTIVE_FILE = original_active_file
+
     def test_create_options_reject_ambiguous_mode(self):
         with self.assertRaises(ValueError):
             app.parse_branch_create_options(
@@ -1263,6 +1286,7 @@ class ImportPlanTests(unittest.TestCase):
         )
 
         self.assertTrue(options["dry_run"])
+        self.assertTrue(options["clear_branches"])
 
     def test_platform_to_local_rejects_schema_data_without_auth_data(self):
         with self.assertRaises(ValueError):
@@ -1342,6 +1366,58 @@ class ImportPlanTests(unittest.TestCase):
         self.assertEqual(job["id"], "job-id")
         self.assertEqual(calls[0][0], "import_platform_to_local")
         self.assertIn("--schema-only", calls[0][2])
+
+    def test_platform_to_local_clears_branches_after_database_import(self):
+        original_build_plan = app.build_import_plan
+        original_reset_database = app.reset_database_copy
+        original_reset_edge = app.reset_edge_functions
+        original_clear_branches = app.clear_branch_registry
+        calls = []
+
+        def fake_build_plan(body):
+            calls.append("plan")
+            return {
+                "source": {"database": {"available": True}},
+                "target": {"database": {"available": True}},
+                "feasibility": {},
+                "warnings": [],
+            }
+
+        def fake_reset_database(job_id, config, env_name, source_role, target_role, options):
+            calls.append("database")
+
+        def fake_reset_edge(*args, **kwargs):
+            calls.append("edge")
+
+        def fake_clear_branches():
+            calls.append("branches")
+            return 2
+
+        app.build_import_plan = fake_build_plan
+        app.reset_database_copy = fake_reset_database
+        app.reset_edge_functions = fake_reset_edge
+        app.clear_branch_registry = fake_clear_branches
+        try:
+            app.run_platform_to_local_job(
+                "job-id",
+                {
+                    "confirm": "CONFIRM",
+                    "database_mode": "schema-only",
+                    "include_edge_functions": False,
+                    "source": {
+                        "type": "platform",
+                        "db_url": "postgres://postgres:secret@example.test/postgres",
+                    },
+                    "target": {"type": "local"},
+                },
+            )
+        finally:
+            app.build_import_plan = original_build_plan
+            app.reset_database_copy = original_reset_database
+            app.reset_edge_functions = original_reset_edge
+            app.clear_branch_registry = original_clear_branches
+
+        self.assertEqual(calls, ["plan", "database", "branches"])
 
     def test_job_progress_merges_details(self):
         job_id = "progress-test"

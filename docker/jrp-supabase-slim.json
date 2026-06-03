@@ -2361,6 +2361,11 @@
           },
           {
             "properties": {
+              "clear_branches": {
+                "default": true,
+                "description": "When reset_database is true, clear local branch snapshots after a successful platform-to-local import so stale branches from the previous local database are not shown.",
+                "type": "boolean"
+              },
               "confirm": {
                 "description": "Required unless dry_run is true. Must be exactly CONFIRM.",
                 "type": "string"
