@@ -1,4 +1,5 @@
 from .settings import *
+from .db_core import psql_command
 
 def now_ms():
     return int(time.time() * 1000)

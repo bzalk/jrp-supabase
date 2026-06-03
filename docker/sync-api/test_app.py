@@ -111,6 +111,50 @@ class EdgeFunctionPackagingTests(unittest.TestCase):
         self.assertNotIn(b"PK\x03\x04", body)
 
 
+class AuditTests(unittest.TestCase):
+    def test_run_logged_sql_uses_psql_command(self):
+        job_id = "sql-job"
+        calls = []
+        original_psql_command = app.psql_command
+        original_popen = app.subprocess.Popen
+
+        def fake_psql_command(endpoint):
+            calls.append(("command", endpoint))
+            return ["psql", "fake"]
+
+        class FakeProcess:
+            returncode = 0
+
+            def communicate(self, sql):
+                calls.append(("sql", sql))
+                return ("OK\n", None)
+
+        def fake_popen(command, stdin=None, stdout=None, stderr=None, text=None):
+            calls.append(("popen", command, stdin, stdout, stderr, text))
+            return FakeProcess()
+
+        with app.jobs_lock:
+            app.jobs[job_id] = {"id": job_id, "output": ""}
+
+        app.psql_command = fake_psql_command
+        app.subprocess.Popen = fake_popen
+        try:
+            app.run_logged_sql(job_id, {"kind": "container"}, "select 1;")
+            with app.jobs_lock:
+                output = app.jobs[job_id]["output"]
+        finally:
+            app.psql_command = original_psql_command
+            app.subprocess.Popen = original_popen
+            with app.jobs_lock:
+                app.jobs.pop(job_id, None)
+
+        self.assertEqual(calls[0], ("command", {"kind": "container"}))
+        self.assertEqual(calls[1][0], "popen")
+        self.assertEqual(calls[2], ("sql", "select 1;"))
+        self.assertIn("$ psql fake", output)
+        self.assertIn("OK", output)
+
+
 class BranchManagerTests(unittest.TestCase):
     def test_create_options_support_app_only_flag_and_schemas(self):
         options = app.parse_branch_create_options(
