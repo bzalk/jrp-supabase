@@ -115,7 +115,13 @@ def pg_dump_command(endpoint, options):
     ]
 
 
-def pg_restore_command(endpoint, options, clean=True, use_list=None):
+def pg_restore_command(
+    endpoint,
+    options,
+    clean=True,
+    use_list=None,
+    disable_trigger_checks=False,
+):
     command = ["pg_restore", "--exit-on-error", "--single-transaction"]
     if clean:
         command += ["--clean", "--if-exists"]
@@ -133,10 +139,11 @@ def pg_restore_command(endpoint, options, clean=True, use_list=None):
         return command
 
     restore_args = command[1:]
+    pgoptions = "-c session_replication_role=replica" if disable_trigger_checks else ""
     script = (
-        "container=$1; user=$2; database=$3; shift 3; "
+        "container=$1; user=$2; database=$3; pgoptions=$4; shift 4; "
         "password=$(docker exec \"$container\" sh -c 'printf %s \"$POSTGRES_PASSWORD\"'); "
-        "PGPASSWORD=\"$password\" exec pg_restore \"$@\" "
+        "PGPASSWORD=\"$password\" PGOPTIONS=\"$pgoptions\" exec pg_restore \"$@\" "
         "-h \"$container\" -U \"$user\" -d \"$database\""
     )
     return [
@@ -147,5 +154,6 @@ def pg_restore_command(endpoint, options, clean=True, use_list=None):
         endpoint["container"],
         endpoint["user"],
         endpoint["database"],
+        pgoptions,
         *restore_args,
     ]

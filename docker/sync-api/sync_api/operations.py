@@ -456,6 +456,11 @@ def reset_database_copy(job_id, config, env_name, source_role, target_role, opti
                 options,
                 clean=not use_managed_schema_restore,
                 use_list=list_path,
+                disable_trigger_checks=(
+                    use_managed_schema_restore
+                    and target_endpoint["kind"] == "container"
+                    and options.get("include_table_data", True)
+                ),
             ),
             input_path=archive_path,
         )

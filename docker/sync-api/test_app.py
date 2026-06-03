@@ -265,6 +265,7 @@ class OperationsTests(unittest.TestCase):
         self.assertIn("_realtime", filter_call[4])
         self.assertIn("--use-list", restore_command)
         self.assertNotIn("--clean", restore_command)
+        self.assertIn("-c session_replication_role=replica", restore_command)
 
 
 class BranchManagerTests(unittest.TestCase):
@@ -387,14 +388,25 @@ class BranchManagerTests(unittest.TestCase):
             {"no_owner": True, "no_privileges": True},
             clean=False,
             use_list="/data/restore.list",
+            disable_trigger_checks=True,
         )
 
         self.assertEqual(command[:3], ["sh", "-c", command[2]])
         self.assertIn("exec pg_restore", command[2])
         self.assertIn("POSTGRES_PASSWORD", command[2])
         self.assertIn("PGPASSWORD", command[2])
+        self.assertIn("PGOPTIONS", command[2])
         self.assertNotIn("docker exec -i supabase-db pg_restore", " ".join(command))
-        self.assertEqual(command[3:7], ["pg_restore-container", "supabase-db", "postgres", "postgres"])
+        self.assertEqual(
+            command[3:8],
+            [
+                "pg_restore-container",
+                "supabase-db",
+                "postgres",
+                "postgres",
+                "-c session_replication_role=replica",
+            ],
+        )
         self.assertIn("--use-list", command)
         self.assertIn("/data/restore.list", command)
 
