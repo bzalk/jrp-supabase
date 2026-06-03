@@ -1,8 +1,17 @@
 from .settings import *
 from .http_utils import sql_literal, sql_identifier
 
+
+def platform_schema_sql_list():
+    return ", ".join(
+        sql_literal(schema_name)
+        for schema_name in sorted(PRESERVE_TARGET_PLATFORM_SCHEMAS_FOR_IMPORT)
+    )
+
+
 def reset_schema_ownership_sql():
-    return """
+    platform_schemas = platform_schema_sql_list()
+    return f"""
 set client_min_messages = warning;
 select coalesce(
   jsonb_agg(
@@ -11,6 +20,7 @@ select coalesce(
       'owner', pg_get_userbyid(n.nspowner),
       'can_drop',
         pg_has_role(n.nspowner, 'MEMBER')
+        and n.nspname not in ({platform_schemas})
         and n.oid not in (select extnamespace from pg_extension)
         and not exists (
           select 1
@@ -188,6 +198,7 @@ where source_environment = {source_literal};
 
 def reset_preclean_sql(drop_only_owned=True):
     owner_filter = "and pg_has_role(n.nspowner, 'MEMBER')" if drop_only_owned else ""
+    platform_schemas = platform_schema_sql_list()
     return """
 set client_min_messages = warning;
 do $$
@@ -200,6 +211,7 @@ begin
     where n.nspname not in ('pg_catalog', 'information_schema')
       and n.nspname not like 'pg_toast%'
       and n.nspname not like 'pg_temp_%'
+      and n.nspname not in ({platform_schemas})
       and n.oid not in (select extnamespace from pg_extension)
       and not exists (
         select 1
@@ -216,7 +228,7 @@ begin
 end
 $$;
 create schema if not exists public;
-""".format(owner_filter=owner_filter)
+""".format(owner_filter=owner_filter, platform_schemas=platform_schemas)
 
 
 def reset_app_schema_objects_sql(schema_names):

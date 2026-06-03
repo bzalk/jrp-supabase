@@ -270,6 +270,8 @@ class OperationsTests(unittest.TestCase):
     def test_reset_preclean_preserves_extension_dependency_schemas(self):
         sql = app.reset_preclean_sql(drop_only_owned=True)
 
+        self.assertIn("'auth'", sql)
+        self.assertIn("'storage'", sql)
         self.assertIn("d.classid = 'pg_namespace'::regclass", sql)
         self.assertIn("d.refclassid = 'pg_extension'::regclass", sql)
         self.assertIn("pg_has_role(n.nspowner, 'MEMBER')", sql)

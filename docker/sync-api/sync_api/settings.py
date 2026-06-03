@@ -183,6 +183,20 @@ SKIP_SOURCE_PLATFORM_SCHEMAS_FOR_HOSTED_RESTORE = {
     "supabase_functions",
     "vault",
 }
+PRESERVE_TARGET_PLATFORM_SCHEMAS_FOR_IMPORT = {
+    "_realtime",
+    "auth",
+    "extensions",
+    "graphql",
+    "graphql_public",
+    "net",
+    "pgbouncer",
+    "realtime",
+    "storage",
+    "supabase_functions",
+    "supabase_migrations",
+    "vault",
+}
 
 store_lock = threading.Lock()
 jobs_lock = threading.Lock()
