@@ -278,6 +278,7 @@ class OperationsTests(unittest.TestCase):
                 "1; 0 0 EXTENSION - pgsodium postgres",
                 "2; 0 0 EXTENSION - pgcrypto postgres",
                 "3; 0 0 COMMENT - EXTENSION pgsodium",
+                "4; 123 456 TABLE DATA pgsodium key postgres",
             ]
             try:
                 removed = app.write_filtered_restore_list(
@@ -285,6 +286,7 @@ class OperationsTests(unittest.TestCase):
                     list_path,
                     managed_schemas=[],
                     existing_extensions=[],
+                    skipped_source_schemas=["pgsodium"],
                     skipped_source_extensions=["pgsodium"],
                 )
             finally:
@@ -292,10 +294,11 @@ class OperationsTests(unittest.TestCase):
 
             output = list_path.read_text()
 
-        self.assertEqual(removed, 2)
+        self.assertEqual(removed, 3)
         self.assertIn(";1; 0 0 EXTENSION - pgsodium postgres", output)
         self.assertIn("2; 0 0 EXTENSION - pgcrypto postgres", output)
         self.assertIn(";3; 0 0 COMMENT - EXTENSION pgsodium", output)
+        self.assertIn(";4; 123 456 TABLE DATA pgsodium key postgres", output)
 
     def test_reset_preclean_preserves_extension_dependency_schemas(self):
         sql = app.reset_preclean_sql(drop_only_owned=True)

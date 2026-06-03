@@ -180,6 +180,7 @@ SKIP_SOURCE_PLATFORM_SCHEMAS_FOR_HOSTED_RESTORE = {
     "graphql",
     "graphql_public",
     "pgbouncer",
+    "pgsodium",
     "supabase_functions",
     "vault",
 }
