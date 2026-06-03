@@ -247,6 +247,8 @@ def edge_source_file_bytes(file_item):
 def edge_function_relative_path(file_path):
     normalized = str(file_path).replace("\\", "/").strip().lstrip("/")
     parts = [part for part in normalized.split("/") if part not in ("", ".")]
+    if len(parts) >= 3 and parts[0] == "tmp" and parts[1].startswith("user_fn_"):
+        parts = parts[2:]
     if not parts or any(part == ".." for part in parts):
         raise ValueError(f"Invalid edge function source path: {file_path}")
     return "/".join(parts)

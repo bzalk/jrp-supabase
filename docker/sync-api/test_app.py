@@ -37,6 +37,20 @@ class EdgeFunctionPackagingTests(unittest.TestCase):
         self.assertEqual(app.edge_function_archive_path("source/index.ts"), "index.ts")
         self.assertEqual(app.edge_function_archive_path("/source/lib/mod.ts"), "lib/mod.ts")
 
+    def test_archive_path_strips_supabase_temp_function_prefix(self):
+        self.assertEqual(
+            app.edge_function_archive_path(
+                "/tmp/user_fn_hsdjpkivywxkwieaiwbq_uuid_6/index.ts"
+            ),
+            "index.ts",
+        )
+        self.assertEqual(
+            app.edge_function_archive_path(
+                "/tmp/user_fn_hsdjpkivywxkwieaiwbq_uuid_6/lib/mod.ts"
+            ),
+            "lib/mod.ts",
+        )
+
     def test_metadata_path_strips_absolute_platform_source_prefix(self):
         self.assertEqual(
             app.edge_function_metadata_path(
