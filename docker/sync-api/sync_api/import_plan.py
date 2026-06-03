@@ -138,6 +138,10 @@ def import_side_config(body, role):
         "user": first_present(side.get("user"), body.get(prefix + "user")),
         "reset_user": first_present(side.get("reset_user"), body.get(prefix + "reset_user")),
         "db_name": first_present(side.get("db_name"), body.get(prefix + "db_name")),
+        "edge_functions_dir": first_present(
+            side.get("edge_functions_dir"),
+            body.get(prefix + "edge_functions_dir"),
+        ),
         "access_token": first_present(
             side.get("access_token"),
             body.get(prefix + "access_token"),
@@ -167,6 +171,7 @@ def side_environment_config(side):
         f"{role}_user": side.get("user"),
         f"{role}_reset_user": side.get("reset_user"),
         f"{role}_db_name": side.get("db_name"),
+        f"{role}_edge_functions_dir": side.get("edge_functions_dir"),
         f"{role}_project_ref": side.get("project_ref"),
         f"{role}_supabase_access_token": side.get("access_token"),
         f"{role}_functions_api_base": side.get("api_base"),
@@ -187,6 +192,7 @@ def public_import_side(side):
         "db_url": mask_url(side.get("db_url")),
         "container": side.get("container"),
         "db_name": side.get("db_name"),
+        "edge_functions_dir": side.get("edge_functions_dir"),
         "api_base": side.get("api_base"),
         "has_access_token": bool(side.get("access_token")),
     }
@@ -361,6 +367,7 @@ def feasibility_from_plan(source_db, target_db, options):
     return {
         "can_plan_import": can_plan,
         "can_run_platform_to_local_now": can_plan and target_ready,
+        "platform_to_local_endpoint_available": True,
         "schema_only_supported": can_plan,
         "schema_and_data_supported": can_plan and options["database_mode"] == "schema-and-data",
         "requires_storage_object_copy": bool(options["include_storage_objects"]),

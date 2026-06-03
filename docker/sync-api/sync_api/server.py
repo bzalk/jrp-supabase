@@ -5,6 +5,7 @@ from .database import *
 from .edge_functions import *
 from .env_config import *
 from .http_utils import *
+from .import_execute import *
 from .import_plan import *
 from .openapi import *
 from .operations import *
@@ -159,6 +160,7 @@ class SyncApiHandler(BaseHTTPRequestHandler):
                         "GET /v1/supabase/projects/{ref}",
                         "GET /v1/supabase/projects/{ref}/backups",
                         "POST /v1/imports/plan",
+                        "POST /v1/imports/platform-to-local",
                         "GET /v1/branches",
                         "POST /v1/branches",
                         "GET /v1/branches/schemas",
@@ -485,6 +487,11 @@ class SyncApiHandler(BaseHTTPRequestHandler):
 
         if parts == ["v1", "imports", "plan"]:
             self.send_json(200, build_import_plan(body))
+            return
+
+        if parts == ["v1", "imports", "platform-to-local"]:
+            job = start_platform_to_local_import(body)
+            self.send_json(202, {"job": job})
             return
 
         if parts == ["v1", "branches"]:

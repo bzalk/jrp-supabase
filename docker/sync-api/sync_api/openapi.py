@@ -385,6 +385,35 @@ def add_branch_openapi(definition):
                     "feasibility",
                 ],
             },
+            "PlatformToLocalImportRequest": {
+                "allOf": [
+                    {"$ref": "#/components/schemas/ImportPlanRequest"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "confirm": {
+                                "type": "string",
+                                "description": (
+                                    "Required unless dry_run is true. Must be exactly "
+                                    "IMPORT PLATFORM TO LOCAL."
+                                ),
+                            },
+                            "dry_run": {"type": "boolean", "default": False},
+                            "reset_database": {"type": "boolean", "default": True},
+                            "reset_edge_functions": {"type": "boolean"},
+                            "prune_edge_functions": {"type": "boolean", "default": True},
+                            "drop_target_schemas": {"type": "boolean", "default": True},
+                            "no_owner": {"type": "boolean", "default": True},
+                            "no_privileges": {"type": "boolean", "default": True},
+                            "schemas": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Optional schema filters passed to pg_dump/pg_restore.",
+                            },
+                        },
+                    },
+                ]
+            },
         }
     )
 
@@ -432,6 +461,33 @@ def add_branch_openapi(definition):
                                 }
                             },
                         },
+                        "400": error_response,
+                        "401": error_response,
+                    },
+                }
+            },
+            "/v1/imports/platform-to-local": {
+                "post": {
+                    "summary": "Start a platform-to-local Supabase import job",
+                    "description": (
+                        "Starts a long-running job that imports a hosted Supabase database "
+                        "into a local/self-hosted target. First implementation copies the "
+                        "database through pg_dump/pg_restore and can copy Edge Functions "
+                        "when configured. Storage object bytes are not copied by this endpoint."
+                    ),
+                    "security": bearer_auth,
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PlatformToLocalImportRequest"
+                                }
+                            }
+                        },
+                    },
+                    "responses": {
+                        "202": {"$ref": "#/components/responses/JobAccepted"},
                         "400": error_response,
                         "401": error_response,
                     },

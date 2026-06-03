@@ -154,6 +154,15 @@ Implement:
 POST /v1/imports/platform-to-local
 ```
 
+Status: first implementation added. It starts a long-running import job, requires `confirm: "IMPORT PLATFORM TO LOCAL"` unless `dry_run` is true, imports database state with `pg_dump`/`pg_restore`, and keeps sync-api tool state outside both source and target Supabase databases.
+
+Pending follow-up work:
+
+- Replace or augment raw `pg_dump` with the safer hosted-platform `supabase db dump` flow.
+- Add Storage/S3 object copy.
+- Add richer verification report after restore.
+- Add local instance provisioning when the target VPS stack does not already exist.
+
 Execution outline:
 
 1. Validate source Supabase project and DB connection.

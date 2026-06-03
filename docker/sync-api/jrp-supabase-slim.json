@@ -2300,6 +2300,56 @@
         ],
         "type": "object"
       },
+      "PlatformToLocalImportRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ImportPlanRequest"
+          },
+          {
+            "properties": {
+              "confirm": {
+                "description": "Required unless dry_run is true. Must be exactly IMPORT PLATFORM TO LOCAL.",
+                "type": "string"
+              },
+              "drop_target_schemas": {
+                "default": true,
+                "type": "boolean"
+              },
+              "dry_run": {
+                "default": false,
+                "type": "boolean"
+              },
+              "no_owner": {
+                "default": true,
+                "type": "boolean"
+              },
+              "no_privileges": {
+                "default": true,
+                "type": "boolean"
+              },
+              "prune_edge_functions": {
+                "default": true,
+                "type": "boolean"
+              },
+              "reset_database": {
+                "default": true,
+                "type": "boolean"
+              },
+              "reset_edge_functions": {
+                "type": "boolean"
+              },
+              "schemas": {
+                "description": "Optional schema filters passed to pg_dump/pg_restore.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
       "ResetOptions": {
         "additionalProperties": false,
         "properties": {
@@ -4377,6 +4427,52 @@
           }
         ],
         "summary": "Plan a hosted/local Supabase import without mutating either side"
+      }
+    },
+    "/v1/imports/platform-to-local": {
+      "post": {
+        "description": "Starts a long-running job that imports a hosted Supabase database into a local/self-hosted target. First implementation copies the database through pg_dump/pg_restore and can copy Edge Functions when configured. Storage object bytes are not copied by this endpoint.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlatformToLocalImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "$ref": "#/components/responses/JobAccepted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Start a platform-to-local Supabase import job"
       }
     },
     "/v1/jobs": {

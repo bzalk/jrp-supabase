@@ -9,7 +9,7 @@ The current implementation supports:
 - Fetching project metadata and backup metadata.
 - Creating a read-only import plan.
 
-The current implementation does not yet execute the import. Execution will be added next through `POST /v1/imports/platform-to-local`.
+The current implementation can plan an import and start a first platform-to-local database import job through `POST /v1/imports/platform-to-local`.
 
 ## Important Architecture Rule
 
@@ -75,6 +75,7 @@ GET  /v1/supabase/projects/{ref}
 GET  /v1/supabase/projects/{ref}/backups
 
 POST /v1/imports/plan
+POST /v1/imports/platform-to-local
 ```
 
 ## List Organizations
@@ -368,7 +369,79 @@ functions_api_base   alias for api_base
    - schema-and-data
    - include storage object copy later
    - include edge functions
-12. Future: start `POST /v1/imports/platform-to-local`.
+12. Start `POST /v1/imports/platform-to-local`.
+
+## Start Platform-To-Local Import
+
+```http
+POST /v1/imports/platform-to-local
+Authorization: Bearer <SYNC_API_TOKEN>
+Content-Type: application/json
+```
+
+This endpoint starts a long-running job. Poll the returned job with:
+
+```text
+GET /v1/jobs/{id}
+```
+
+Destructive imports require explicit confirmation:
+
+```json
+{
+  "confirm": "IMPORT PLATFORM TO LOCAL",
+  "database_mode": "schema-and-data",
+  "source": {
+    "type": "platform",
+    "project_ref": "abcdefghijklmnopqrst",
+    "db_url": "postgres://postgres.<project-ref>:<password>@aws-0-region.pooler.supabase.com:5432/postgres"
+  },
+  "target": {
+    "type": "local",
+    "container": "supabase-db",
+    "db_name": "postgres",
+    "user": "postgres"
+  },
+  "include_storage_bucket_metadata": true,
+  "include_storage_objects": false,
+  "include_edge_functions": false
+}
+```
+
+Use this for a dry run without confirmation:
+
+```json
+{
+  "dry_run": true,
+  "database_mode": "schema-only",
+  "source": {
+    "type": "platform",
+    "project_ref": "abcdefghijklmnopqrst",
+    "db_url": "postgres://postgres.<project-ref>:<password>@aws-0-region.pooler.supabase.com:5432/postgres"
+  },
+  "target": {
+    "type": "local",
+    "container": "supabase-db"
+  }
+}
+```
+
+Important target container name:
+
+```text
+supabase-db
+```
+
+Do not use `supabase_db_local` for this deployment. That container does not exist on the current VPS and will make the plan report that platform-to-local cannot run now.
+
+Current execution limitations:
+
+- Database copy uses `pg_dump`/`pg_restore` in this first implementation.
+- `schema-and-data` execution requires `include_auth_data: true`; selective auth-data exclusion is not implemented yet.
+- Storage object bytes are not copied.
+- `include_storage_objects: true` is rejected until the Storage/S3 copy workflow exists.
+- Edge function copy is supported only when source/target edge function metadata is configured.
+- This job is destructive to the local target database unless `dry_run: true`.
 
 ## Information The UX Needs To Collect
 
@@ -405,4 +478,4 @@ Required later for hosted clone creation:
 
 ## Current Limitation
 
-`POST /v1/imports/plan` is read-only. It returns feasibility and warnings but does not create a local instance, dump data, restore data, copy storage objects, or create a hosted clone.
+`POST /v1/imports/plan` is read-only. `POST /v1/imports/platform-to-local` can start a database import into a local target, but it does not create a local instance, copy storage objects, or create a hosted clone.

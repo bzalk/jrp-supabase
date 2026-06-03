@@ -696,6 +696,7 @@ class BranchingDocumentationTests(unittest.TestCase):
         self.assertEqual(route["security"], [])
         self.assertIn("application/json", route["responses"]["200"]["content"])
         self.assertNotIn("/v1/openapi.json", definition["paths"])
+        self.assertIn("/v1/imports/platform-to-local", definition["paths"])
 
     def test_openapi_exposes_public_branching_guide(self):
         definition = app.read_openapi_definition()
@@ -739,6 +740,7 @@ class ImportPlanTests(unittest.TestCase):
         self.assertFalse(plan["control_plane"]["uses_source_database_for_tool_state"])
         self.assertFalse(plan["control_plane"]["uses_target_database_for_tool_state"])
         self.assertFalse(plan["feasibility"]["requires_tool_database"])
+        self.assertTrue(plan["feasibility"]["platform_to_local_endpoint_available"])
         self.assertEqual(plan["target"]["side"]["container"], "supabase-db")
         self.assertFalse(plan["source"]["database"]["available"])
 
@@ -833,6 +835,91 @@ class ImportPlanTests(unittest.TestCase):
 
         self.assertEqual(response["projects"], [{"ref": "project-ref"}])
         self.assertEqual(calls, [("supabase-token", "/v1/projects?organization_id=org_123")])
+
+    def test_platform_to_local_requires_confirmation(self):
+        with self.assertRaises(ValueError):
+            app.parse_platform_to_local_options(
+                {
+                    "source": {
+                        "type": "platform",
+                        "db_url": "postgres://postgres:secret@example.test/postgres",
+                    },
+                    "target": {"type": "local"},
+                }
+            )
+
+        options = app.parse_platform_to_local_options(
+            {
+                "dry_run": True,
+                "source": {
+                    "type": "platform",
+                    "db_url": "postgres://postgres:secret@example.test/postgres",
+                },
+                "target": {"type": "local"},
+            }
+        )
+
+        self.assertTrue(options["dry_run"])
+
+    def test_platform_to_local_rejects_schema_data_without_auth_data(self):
+        with self.assertRaises(ValueError):
+            app.parse_platform_to_local_options(
+                {
+                    "confirm": "IMPORT PLATFORM TO LOCAL",
+                    "database_mode": "schema-and-data",
+                    "include_auth_data": False,
+                    "source": {
+                        "type": "platform",
+                        "db_url": "postgres://postgres:secret@example.test/postgres",
+                    },
+                    "target": {"type": "local"},
+                }
+            )
+
+    def test_platform_to_local_defaults_target_to_local_supabase_db(self):
+        config, source, target = app.platform_to_local_config(
+            {
+                "source": {
+                    "type": "platform",
+                    "project_ref": "project-ref",
+                    "db_url": "postgres://postgres:secret@example.test/postgres",
+                },
+                "target": {"type": "local"},
+            }
+        )
+
+        self.assertEqual(source["project_ref"], "project-ref")
+        self.assertEqual(target["container"], "supabase-db")
+        self.assertEqual(config["target_container"], "supabase-db")
+
+    def test_start_platform_to_local_import_queues_job(self):
+        original_start_job = app.start_job
+        calls = []
+
+        def fake_start_job(kind, env_name, command, runner=None):
+            calls.append((kind, env_name, command, runner))
+            return {"id": "job-id", "kind": kind, "status": "queued"}
+
+        app.start_job = fake_start_job
+        try:
+            job = app.start_platform_to_local_import(
+                {
+                    "confirm": "IMPORT PLATFORM TO LOCAL",
+                    "database_mode": "schema-only",
+                    "source": {
+                        "type": "platform",
+                        "project_ref": "project-ref",
+                        "db_url": "postgres://postgres:secret@example.test/postgres",
+                    },
+                    "target": {"type": "local"},
+                }
+            )
+        finally:
+            app.start_job = original_start_job
+
+        self.assertEqual(job["id"], "job-id")
+        self.assertEqual(calls[0][0], "import_platform_to_local")
+        self.assertIn("--schema-only", calls[0][2])
 
 
 if __name__ == "__main__":
