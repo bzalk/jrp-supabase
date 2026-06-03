@@ -9,7 +9,16 @@ select coalesce(
     jsonb_build_object(
       'schema', n.nspname,
       'owner', pg_get_userbyid(n.nspowner),
-      'can_drop', pg_has_role(n.nspowner, 'MEMBER')
+      'can_drop',
+        pg_has_role(n.nspowner, 'MEMBER')
+        and n.oid not in (select extnamespace from pg_extension)
+        and not exists (
+          select 1
+          from pg_depend d
+          where d.classid = 'pg_namespace'::regclass
+            and d.objid = n.oid
+            and d.refclassid = 'pg_extension'::regclass
+        )
     )
     order by n.nspname
   ),
@@ -192,6 +201,13 @@ begin
       and n.nspname not like 'pg_toast%'
       and n.nspname not like 'pg_temp_%'
       and n.oid not in (select extnamespace from pg_extension)
+      and not exists (
+        select 1
+        from pg_depend d
+        where d.classid = 'pg_namespace'::regclass
+          and d.objid = n.oid
+          and d.refclassid = 'pg_extension'::regclass
+      )
       {owner_filter}
     order by n.nspname
   loop

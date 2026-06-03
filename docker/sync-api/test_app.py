@@ -267,6 +267,13 @@ class OperationsTests(unittest.TestCase):
         self.assertNotIn("--clean", restore_command)
         self.assertIn("-c session_replication_role=replica", restore_command)
 
+    def test_reset_preclean_preserves_extension_dependency_schemas(self):
+        sql = app.reset_preclean_sql(drop_only_owned=True)
+
+        self.assertIn("d.classid = 'pg_namespace'::regclass", sql)
+        self.assertIn("d.refclassid = 'pg_extension'::regclass", sql)
+        self.assertIn("pg_has_role(n.nspowner, 'MEMBER')", sql)
+
 
 class BranchManagerTests(unittest.TestCase):
     def test_create_options_support_app_only_flag_and_schemas(self):
