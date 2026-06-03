@@ -374,6 +374,30 @@ class BranchManagerTests(unittest.TestCase):
 
         self.assertIn("--schema-only", dump_command)
 
+    def test_container_pg_restore_uses_local_client_over_network(self):
+        endpoint = {
+            "kind": "container",
+            "container": "supabase-db",
+            "user": "postgres",
+            "database": "postgres",
+        }
+
+        command = app.pg_restore_command(
+            endpoint,
+            {"no_owner": True, "no_privileges": True},
+            clean=False,
+            use_list="/data/restore.list",
+        )
+
+        self.assertEqual(command[:3], ["sh", "-c", command[2]])
+        self.assertIn("exec pg_restore", command[2])
+        self.assertIn("POSTGRES_PASSWORD", command[2])
+        self.assertIn("PGPASSWORD", command[2])
+        self.assertNotIn("docker exec -i supabase-db pg_restore", " ".join(command))
+        self.assertEqual(command[3:7], ["pg_restore-container", "supabase-db", "postgres", "postgres"])
+        self.assertIn("--use-list", command)
+        self.assertIn("/data/restore.list", command)
+
     def test_branch_database_endpoint_defaults_to_owner_capable_local_role(self):
         original_db_url = app.BRANCH_DB_URL
         original_user = app.BRANCH_DB_USER

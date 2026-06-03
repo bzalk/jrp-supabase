@@ -132,14 +132,20 @@ def pg_restore_command(endpoint, options, clean=True, use_list=None):
         command += ["--dbname", endpoint["db_url"]]
         return command
 
+    restore_args = command[1:]
+    script = (
+        "container=$1; user=$2; database=$3; shift 3; "
+        "password=$(docker exec \"$container\" sh -c 'printf %s \"$POSTGRES_PASSWORD\"'); "
+        "PGPASSWORD=\"$password\" exec pg_restore \"$@\" "
+        "-h \"$container\" -U \"$user\" -d \"$database\""
+    )
     return [
-        "docker",
-        "exec",
-        "-i",
+        "sh",
+        "-c",
+        script,
+        "pg_restore-container",
         endpoint["container"],
-        *command,
-        "-U",
         endpoint["user"],
-        "-d",
         endpoint["database"],
+        *restore_args,
     ]
