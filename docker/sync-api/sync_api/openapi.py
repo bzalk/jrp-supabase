@@ -343,7 +343,14 @@ def add_branch_openapi(definition):
                     "project_ref": {"type": "string"},
                     "project_id": {"type": "string"},
                     "db_url": {"type": "string"},
-                    "container": {"type": "string"},
+                    "container": {
+                        "type": "string",
+                        "description": (
+                            "Local Docker database container. Canonical value is "
+                            "supabase-db. Legacy supabase_db_local is normalized to "
+                            "supabase-db by platform-to-local import planning/execution."
+                        ),
+                    },
                     "user": {"type": "string"},
                     "reset_user": {"type": "string"},
                     "db_name": {"type": "string"},
@@ -468,6 +475,14 @@ def add_branch_openapi(definition):
                 }
             )
         job_properties["progress"] = {"$ref": "#/components/schemas/JobProgress"}
+        job_properties["progress_events"] = {
+            "type": "array",
+            "description": (
+                "Server-recorded progress history. Use this when the UI needs to show "
+                "phases that may have happened between polling intervals."
+            ),
+            "items": {"$ref": "#/components/schemas/JobProgress"},
+        }
 
     paths.update(
         {

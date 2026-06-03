@@ -88,7 +88,7 @@ Important target container name for this deployment:
 supabase-db
 ```
 
-Do not use `supabase_db_local`.
+The canonical value is `supabase-db`. The API now normalizes the legacy value `supabase_db_local` to `supabase-db`, but the frontend should still send `supabase-db`.
 
 ## Start Platform-To-Local Import
 
@@ -212,6 +212,7 @@ New import jobs include:
         "table_progress_note": "This first implementation uses pg_dump/pg_restore, so progress is reported by phase. Per-table copy progress requires a future table-by-table restore workflow."
       }
     },
+    "progress_events": [],
     "output": "Platform-to-local import started\n..."
   }
 }
@@ -219,7 +220,7 @@ New import jobs include:
 
 Poll every 1-2 seconds while `status` is `queued` or `running`. Stop polling when `status` is `succeeded` or `failed`.
 
-Use `progress.percent` for the progress bar, `progress.message` as the current status line, and `output` for an expandable log panel.
+Use `progress.percent` for the progress bar, `progress.message` as the current status line, `progress_events` for the server-recorded phase history, and `output` for an expandable log panel.
 
 ## Progress Phases
 

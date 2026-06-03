@@ -2010,6 +2010,7 @@
             "type": "string"
           },
           "container": {
+            "description": "Local Docker database container. Canonical value is supabase-db. Legacy supabase_db_local is normalized to supabase-db by platform-to-local import planning/execution.",
             "type": "string"
           },
           "db_name": {
@@ -2192,6 +2193,13 @@
           },
           "progress": {
             "$ref": "#/components/schemas/JobProgress"
+          },
+          "progress_events": {
+            "description": "Server-recorded progress history. Use this when the UI needs to show phases that may have happened between polling intervals.",
+            "items": {
+              "$ref": "#/components/schemas/JobProgress"
+            },
+            "type": "array"
           },
           "started_at_ms": {
             "type": [

@@ -113,6 +113,13 @@ def public_environment(name, config):
 
 def start_job(kind, env_name, command, runner=None):
     job_id = str(uuid.uuid4())
+    progress = {
+        "phase": "queued",
+        "percent": 0,
+        "message": "Queued",
+        "updated_at_ms": now_ms(),
+        "details": {},
+    }
     job = {
         "id": job_id,
         "kind": kind,
@@ -124,13 +131,8 @@ def start_job(kind, env_name, command, runner=None):
         "finished_at_ms": None,
         "command": redact_command(command),
         "output": "",
-        "progress": {
-            "phase": "queued",
-            "percent": 0,
-            "message": "Queued",
-            "updated_at_ms": now_ms(),
-            "details": {},
-        },
+        "progress": progress,
+        "progress_events": [dict(progress)],
     }
 
     with jobs_lock:
@@ -254,13 +256,18 @@ def update_job_progress(job_id, phase, percent, message=None, details=None):
         merged_details = dict(current.get("details") or {})
         if details:
             merged_details.update(details)
-        job["progress"] = {
+        progress = {
             "phase": phase,
             "percent": percent,
             "message": message or phase.replace("_", " ").title(),
             "updated_at_ms": now_ms(),
             "details": merged_details,
         }
+        job["progress"] = progress
+        progress_events = job.setdefault("progress_events", [])
+        progress_events.append(dict(progress))
+        if len(progress_events) > 100:
+            del progress_events[:-100]
 
 
 def run_job(job_id, command):

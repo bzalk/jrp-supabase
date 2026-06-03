@@ -16,6 +16,10 @@ IMPORT_DATABASE_MODES = {
     "schema-and-data",
 }
 
+LOCAL_TARGET_CONTAINER_ALIASES = {
+    "supabase_db_local": "supabase-db",
+}
+
 
 def database_overview_sql():
     return f"""
@@ -115,6 +119,10 @@ def first_present(*values):
     return None
 
 
+def normalize_local_target_container(container):
+    return LOCAL_TARGET_CONTAINER_ALIASES.get(container, container)
+
+
 def import_side_config(body, role):
     side = side_body(body, role)
     prefix = f"{role}_"
@@ -159,6 +167,8 @@ def import_side_config(body, role):
 
     if role == "target" and config["type"] == "local" and not config["db_url"] and not config["container"]:
         config["container"] = "supabase-db"
+    if role == "target" and config["type"] in (None, "local") and config["container"]:
+        config["container"] = normalize_local_target_container(config["container"])
 
     return config
 

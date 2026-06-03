@@ -435,7 +435,7 @@ Important target container name:
 supabase-db
 ```
 
-Do not use `supabase_db_local` for this deployment. That container does not exist on the current VPS and will make the plan report that platform-to-local cannot run now.
+Avoid `supabase_db_local` for this deployment. The API normalizes that legacy value to `supabase-db`, but the frontend should still send the canonical `supabase-db` value.
 
 ## Import Job Progress
 
@@ -486,6 +486,7 @@ Response shape:
         "table_progress_note": "This first implementation uses pg_dump/pg_restore, so progress is reported by phase. Per-table copy progress requires a future table-by-table restore workflow."
       }
     },
+    "progress_events": [],
     "output": "Platform-to-local import started\n..."
   }
 }
@@ -517,7 +518,8 @@ Recommended UI behavior:
 3. Use `progress.percent` for the progress bar.
 4. Use `progress.message` as the current status line.
 5. Show `progress.details.source_database.largest_tables` in the plan/review step and in a job detail drawer.
-6. Put `job.output` behind an expandable log panel.
+6. Use `progress_events` for a server-recorded history of phases that may have happened between polling intervals.
+7. Put `job.output` behind an expandable log panel.
 
 Progress is currently phase-level. The first implementation uses `pg_dump`/`pg_restore`, so it cannot accurately report exact table-by-table copy bytes. The plan and progress details include largest table metadata so the UI can identify likely long-running tables before execution.
 

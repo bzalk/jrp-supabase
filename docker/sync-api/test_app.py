@@ -765,6 +765,23 @@ class ImportPlanTests(unittest.TestCase):
         self.assertEqual(plan["target"]["side"]["container"], "supabase-db")
         self.assertFalse(plan["source"]["database"]["available"])
 
+    def test_import_plan_normalizes_legacy_local_target_container(self):
+        plan = app.build_import_plan(
+            {
+                "database_mode": "schema-only",
+                "source": {
+                    "type": "platform",
+                    "project_ref": "abcdefghijklmnopqrst",
+                },
+                "target": {
+                    "type": "local",
+                    "container": "supabase_db_local",
+                },
+            }
+        )
+
+        self.assertEqual(plan["target"]["side"]["container"], "supabase-db")
+
     def test_import_plan_summarizes_database_when_connection_available(self):
         original_psql_json = app.psql_json
 
@@ -913,6 +930,24 @@ class ImportPlanTests(unittest.TestCase):
         self.assertEqual(target["container"], "supabase-db")
         self.assertEqual(config["target_container"], "supabase-db")
 
+    def test_platform_to_local_normalizes_legacy_local_target_container(self):
+        config, source, target = app.platform_to_local_config(
+            {
+                "source": {
+                    "type": "platform",
+                    "project_ref": "project-ref",
+                    "db_url": "postgres://postgres:secret@example.test/postgres",
+                },
+                "target": {
+                    "type": "local",
+                    "container": "supabase_db_local",
+                },
+            }
+        )
+
+        self.assertEqual(target["container"], "supabase-db")
+        self.assertEqual(config["target_container"], "supabase-db")
+
     def test_start_platform_to_local_import_queues_job(self):
         original_start_job = app.start_job
         calls = []
@@ -977,6 +1012,24 @@ class ImportPlanTests(unittest.TestCase):
             progress["details"],
             {"existing": True, "table_count": 12},
         )
+        with app.jobs_lock:
+            app.jobs[job_id] = {
+                "id": job_id,
+                "progress_events": [],
+            }
+        try:
+            app.update_job_progress(job_id, "planning", 10, "Planning")
+            app.update_job_progress(job_id, "planned", 20, "Planned")
+            with app.jobs_lock:
+                phases = [
+                    event["phase"]
+                    for event in app.jobs[job_id]["progress_events"]
+                ]
+        finally:
+            with app.jobs_lock:
+                app.jobs.pop(job_id, None)
+
+        self.assertEqual(phases, ["planning", "planned"])
 
 
 if __name__ == "__main__":
