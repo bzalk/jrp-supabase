@@ -549,6 +549,19 @@ class BranchManagerTests(unittest.TestCase):
 
         self.assertEqual(endpoint["user"], "supabase_admin")
 
+    def test_database_endpoint_ignores_none_user_and_database(self):
+        endpoint = app.database_endpoint_from_config(
+            {
+                "target_container": "supabase-db",
+                "target_user": None,
+                "target_db_name": None,
+            },
+            "target",
+        )
+
+        self.assertEqual(endpoint["user"], "supabase_admin")
+        self.assertEqual(endpoint["database"], "postgres")
+
     def test_branch_database_endpoint_defaults_to_owner_capable_local_role(self):
         original_db_url = app.BRANCH_DB_URL
         original_user = app.BRANCH_DB_USER

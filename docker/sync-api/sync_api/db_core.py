@@ -14,8 +14,8 @@ def database_endpoint_from_config(config, role, default_user="supabase_admin"):
     return {
         "kind": "container",
         "container": container,
-        "user": config.get(f"{role}_user", default_user),
-        "database": config.get(f"{role}_db_name", "postgres"),
+        "user": config.get(f"{role}_user") or default_user,
+        "database": config.get(f"{role}_db_name") or "postgres",
     }
 
 
