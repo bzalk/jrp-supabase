@@ -124,6 +124,27 @@ class EdgeFunctionPackagingTests(unittest.TestCase):
         self.assertNotIn(b'filename="hello.zip"', body)
         self.assertNotIn(b"PK\x03\x04", body)
 
+    def test_write_local_function_strips_hosted_temp_path(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            app.write_local_edge_function(
+                root,
+                {
+                    "slug": "stripe-webhook",
+                    "files": [
+                        {
+                            "path": "/tmp/user_fn_hsdjpkivywxkwieaiwbq_uuid_6/index.ts",
+                            "content": "Deno.serve(() => new Response('ok'))",
+                        }
+                    ],
+                },
+            )
+
+            self.assertEqual(
+                (root / "stripe-webhook" / "index.ts").read_text(),
+                "Deno.serve(() => new Response('ok'))",
+            )
+
 
 class AuditTests(unittest.TestCase):
     def test_run_logged_sql_uses_psql_command(self):

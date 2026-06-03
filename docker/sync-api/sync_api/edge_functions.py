@@ -385,9 +385,7 @@ def write_local_edge_function(root, function_item):
         shutil.rmtree(function_dir)
     function_dir.mkdir(parents=True, exist_ok=True)
     for file_item in function_item.get("files", []):
-        relative_path = Path(file_item["path"])
-        if relative_path.is_absolute() or ".." in relative_path.parts:
-            raise ValueError(f"Invalid edge function source path: {file_item['path']}")
+        relative_path = Path(edge_function_archive_path(file_item["path"]))
         target_file = function_dir / relative_path
         target_file.parent.mkdir(parents=True, exist_ok=True)
         target_file.write_bytes(edge_source_file_bytes(file_item))
