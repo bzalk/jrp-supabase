@@ -418,6 +418,15 @@ def add_sync_api_routes(definition):
                                     "not shown."
                                 ),
                             },
+                            "create_main_branch": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": (
+                                    "When reset_database is true, create an active main "
+                                    "branch snapshot from the imported local database after "
+                                    "stale branches are cleared."
+                                ),
+                            },
                             "drop_target_schemas": {"type": "boolean", "default": True},
                             "no_owner": {"type": "boolean", "default": True},
                             "no_privileges": {"type": "boolean", "default": True},

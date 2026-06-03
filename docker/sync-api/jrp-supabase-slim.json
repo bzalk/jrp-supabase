@@ -2370,6 +2370,11 @@
                 "description": "Required unless dry_run is true. Must be exactly CONFIRM.",
                 "type": "string"
               },
+              "create_main_branch": {
+                "default": true,
+                "description": "When reset_database is true, create an active main branch snapshot from the imported local database after stale branches are cleared.",
+                "type": "boolean"
+              },
               "drop_target_schemas": {
                 "default": true,
                 "type": "boolean"

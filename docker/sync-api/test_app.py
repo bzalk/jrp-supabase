@@ -1286,6 +1286,7 @@ class ImportPlanTests(unittest.TestCase):
 
         self.assertTrue(options["dry_run"])
         self.assertTrue(options["clear_branches"])
+        self.assertTrue(options["create_main_branch"])
 
     def test_platform_to_local_rejects_schema_data_without_auth_data(self):
         with self.assertRaises(ValueError):
@@ -1366,11 +1367,13 @@ class ImportPlanTests(unittest.TestCase):
         self.assertEqual(calls[0][0], "import_platform_to_local")
         self.assertIn("--schema-only", calls[0][2])
 
-    def test_platform_to_local_clears_branches_after_database_import(self):
+    def test_platform_to_local_recreates_main_branch_after_database_import(self):
         original_build_plan = app.build_import_plan
         original_reset_database = app.reset_database_copy
         original_reset_edge = app.reset_edge_functions
         original_clear_branches = app.clear_branch_registry
+        original_snapshot = app.snapshot_branch_state
+        original_write_active = app.write_active_branch
         calls = []
 
         def fake_build_plan(body):
@@ -1392,10 +1395,45 @@ class ImportPlanTests(unittest.TestCase):
             calls.append("branches")
             return 2
 
+        def fake_snapshot(
+            job_id,
+            name,
+            mode,
+            include_storage_files,
+            schemas,
+            notes=None,
+            existing_metadata=None,
+            overwrite=False,
+            manage_services=True,
+            no_owner=True,
+            no_privileges=False,
+            source_branch=None,
+            include_table_data=True,
+        ):
+            calls.append(
+                (
+                    "snapshot",
+                    name,
+                    mode,
+                    include_storage_files,
+                    schemas,
+                    notes,
+                    overwrite,
+                    manage_services,
+                    include_table_data,
+                )
+            )
+            return {"name": name}
+
+        def fake_write_active(name):
+            calls.append(("active", name))
+
         app.build_import_plan = fake_build_plan
         app.reset_database_copy = fake_reset_database
         app.reset_edge_functions = fake_reset_edge
         app.clear_branch_registry = fake_clear_branches
+        app.snapshot_branch_state = fake_snapshot
+        app.write_active_branch = fake_write_active
         try:
             app.run_platform_to_local_job(
                 "job-id",
@@ -1415,8 +1453,29 @@ class ImportPlanTests(unittest.TestCase):
             app.reset_database_copy = original_reset_database
             app.reset_edge_functions = original_reset_edge
             app.clear_branch_registry = original_clear_branches
+            app.snapshot_branch_state = original_snapshot
+            app.write_active_branch = original_write_active
 
-        self.assertEqual(calls, ["plan", "database", "branches"])
+        self.assertEqual(
+            calls,
+            [
+                "plan",
+                "database",
+                "branches",
+                (
+                    "snapshot",
+                    "main",
+                    "app-only",
+                    False,
+                    ["public"],
+                    "Baseline after platform-to-local import",
+                    True,
+                    False,
+                    False,
+                ),
+                ("active", "main"),
+            ],
+        )
 
     def test_job_progress_merges_details(self):
         job_id = "progress-test"

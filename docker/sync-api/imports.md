@@ -125,11 +125,12 @@ Example schema-and-data request:
   "include_storage_objects": false,
   "include_edge_functions": false,
   "include_auth_data": true,
-  "clear_branches": true
+  "clear_branches": true,
+  "create_main_branch": true
 }
 ```
 
-`clear_branches` defaults to `true`. When the import replaces the local database, existing local branch snapshots are cleared after the database restore succeeds because they belong to the previous local database state. Send `clear_branches: false` only for an advanced recovery workflow where stale branch snapshots should be intentionally preserved.
+`clear_branches` defaults to `true`. When the import replaces the local database, existing local branch snapshots are cleared after the database restore succeeds because they belong to the previous local database state. `create_main_branch` also defaults to `true`, so the imported database is immediately saved as the active `main` branch. Send `clear_branches: false` or `create_main_branch: false` only for an advanced recovery workflow.
 
 Example dry run:
 
@@ -257,7 +258,7 @@ The current database import uses `pg_dump` and `pg_restore`, so the API reports 
 7. Navigate to a job detail screen or open a modal with progress, current phase, and logs.
 8. Poll `GET /v1/jobs/{id}` until terminal status.
 9. On success, show that the local target database has been replaced.
-10. Refresh the Branches page; by default it should show no local branches after a successful platform-to-local import.
+10. Refresh the Branches page; by default it should show a fresh active `main` branch after a successful platform-to-local import.
 11. On failure, show `progress.message` and the tail of `output`.
 
 ## Current Limitations

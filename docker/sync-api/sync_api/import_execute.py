@@ -1,6 +1,12 @@
 from .settings import *
 from .audit import append_job_output, start_job, update_job_progress
-from .branch_core import clear_branch_registry
+from .branch_core import (
+    clear_branch_registry,
+    validate_branch_name,
+    validate_schema_names,
+    write_active_branch,
+)
+from .branch_snapshot import snapshot_branch_state
 from .http_utils import parse_bool_body
 from .import_plan import (
     build_import_plan,
@@ -46,6 +52,7 @@ def parse_platform_to_local_options(body):
         "no_privileges": parse_bool_body(body, "no_privileges", True),
         "include_table_data": options["database_mode"] == "schema-and-data",
         "clear_branches": parse_bool_body(body, "clear_branches", True),
+        "create_main_branch": parse_bool_body(body, "create_main_branch", True),
         "schemas": body.get("schemas") or [],
     }
 
@@ -231,6 +238,35 @@ def run_platform_to_local_job(job_id, body):
             append_job_output(
                 job_id,
                 "Local branch registry preserved by clear_branches=false\n",
+            )
+        if options["create_main_branch"]:
+            baseline_name = validate_branch_name(BRANCH_DEFAULT_BASELINE_NAME)
+            schemas = validate_schema_names(
+                BRANCH_DEFAULT_APP_SCHEMAS,
+                default=["public"],
+            )
+            snapshot_branch_state(
+                job_id,
+                baseline_name,
+                "app-only",
+                False,
+                schemas,
+                notes="Baseline after platform-to-local import",
+                overwrite=True,
+                manage_services=False,
+                no_owner=options.get("no_owner", True),
+                no_privileges=options.get("no_privileges", True),
+                include_table_data=options.get("include_table_data", True),
+            )
+            write_active_branch(baseline_name)
+            append_job_output(
+                job_id,
+                f"Created active {baseline_name} branch from imported local database\n",
+            )
+        else:
+            append_job_output(
+                job_id,
+                "Default main branch creation skipped by create_main_branch=false\n",
             )
     else:
         append_job_output(job_id, "Database import disabled by reset_database=false\n")
