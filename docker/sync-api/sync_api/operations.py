@@ -435,6 +435,7 @@ def reset_database_copy(job_id, config, env_name, source_role, target_role, opti
                 existing_event_triggers,
                 existing_publications,
                 SKIP_SOURCE_PLATFORM_SCHEMAS_FOR_HOSTED_RESTORE,
+                SKIP_SOURCE_PLATFORM_EXTENSIONS_FOR_RESTORE,
             )
             append_job_output(
                 job_id,
@@ -445,7 +446,9 @@ def reset_database_copy(job_id, config, env_name, source_role, target_role, opti
                     f"and {len(resettable_managed_sequences)} resettable managed sequences. "
                     f"Preserved existing target schemas: {', '.join(preserved_schemas)}. "
                     "Skipped hosted platform schemas from source dump: "
-                    f"{', '.join(sorted(SKIP_SOURCE_PLATFORM_SCHEMAS_FOR_HOSTED_RESTORE))}.\n"
+                    f"{', '.join(sorted(SKIP_SOURCE_PLATFORM_SCHEMAS_FOR_HOSTED_RESTORE))}. "
+                    "Skipped hosted platform extensions from source dump: "
+                    f"{', '.join(sorted(SKIP_SOURCE_PLATFORM_EXTENSIONS_FOR_RESTORE))}.\n"
                 ),
             )
 

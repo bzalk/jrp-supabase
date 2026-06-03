@@ -183,6 +183,9 @@ SKIP_SOURCE_PLATFORM_SCHEMAS_FOR_HOSTED_RESTORE = {
     "supabase_functions",
     "vault",
 }
+SKIP_SOURCE_PLATFORM_EXTENSIONS_FOR_RESTORE = {
+    "pgsodium",
+}
 PRESERVE_TARGET_PLATFORM_SCHEMAS_FOR_IMPORT = {
     "_realtime",
     "auth",

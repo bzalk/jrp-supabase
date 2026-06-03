@@ -207,6 +207,7 @@ class OperationsTests(unittest.TestCase):
             existing_event_triggers=None,
             existing_publications=None,
             skipped_source_schemas=None,
+            skipped_source_extensions=None,
         ):
             calls.append(
                 (
@@ -215,6 +216,7 @@ class OperationsTests(unittest.TestCase):
                     preserved_schemas,
                     existing_extensions,
                     skipped_source_schemas,
+                    skipped_source_extensions,
                 )
             )
             Path(list_path).write_text("filtered\n")
@@ -263,9 +265,37 @@ class OperationsTests(unittest.TestCase):
         self.assertIn("_realtime", filter_call[2])
         self.assertIn("pgcrypto", filter_call[3])
         self.assertIn("_realtime", filter_call[4])
+        self.assertIn("pgsodium", filter_call[5])
         self.assertIn("--use-list", restore_command)
         self.assertNotIn("--clean", restore_command)
         self.assertIn("-c session_replication_role=replica", restore_command)
+
+    def test_restore_filter_skips_platform_extensions(self):
+        original_archive_list = app.restore_archive_list
+        with tempfile.TemporaryDirectory() as tmpdir:
+            list_path = Path(tmpdir) / "restore.list"
+            app.restore_archive_list = lambda archive_path: [
+                "1; 0 0 EXTENSION - pgsodium postgres",
+                "2; 0 0 EXTENSION - pgcrypto postgres",
+                "3; 0 0 COMMENT - EXTENSION pgsodium",
+            ]
+            try:
+                removed = app.write_filtered_restore_list(
+                    "archive.dump",
+                    list_path,
+                    managed_schemas=[],
+                    existing_extensions=[],
+                    skipped_source_extensions=["pgsodium"],
+                )
+            finally:
+                app.restore_archive_list = original_archive_list
+
+            output = list_path.read_text()
+
+        self.assertEqual(removed, 2)
+        self.assertIn(";1; 0 0 EXTENSION - pgsodium postgres", output)
+        self.assertIn("2; 0 0 EXTENSION - pgcrypto postgres", output)
+        self.assertIn(";3; 0 0 COMMENT - EXTENSION pgsodium", output)
 
     def test_reset_preclean_preserves_extension_dependency_schemas(self):
         sql = app.reset_preclean_sql(drop_only_owned=True)

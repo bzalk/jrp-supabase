@@ -106,6 +106,7 @@ def write_filtered_restore_list(
     existing_event_triggers=None,
     existing_publications=None,
     skipped_source_schemas=None,
+    skipped_source_extensions=None,
 ):
     managed_schemas = set(managed_schemas)
     preserved_schemas = set(preserved_schemas or []) | managed_schemas
@@ -115,6 +116,7 @@ def write_filtered_restore_list(
     existing_event_triggers = set(existing_event_triggers or [])
     existing_publications = set(existing_publications or [])
     skipped_source_schemas = set(skipped_source_schemas or [])
+    skipped_source_extensions = set(skipped_source_extensions or [])
     kept = []
     removed_count = 0
     for line in restore_archive_list(archive_path):
@@ -124,7 +126,10 @@ def write_filtered_restore_list(
 
         remove = False
         extension_name = parse_extension_restore_line(line)
-        if extension_name and extension_name in existing_extensions:
+        if extension_name and (
+            extension_name in existing_extensions
+            or extension_name in skipped_source_extensions
+        ):
             remove = True
         if parse_extension_comment_restore_line(line):
             remove = True
