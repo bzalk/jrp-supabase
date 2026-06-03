@@ -45,6 +45,7 @@ class SyncApiHandler(BaseHTTPRequestHandler):
             "/health",
             "/v1/jrp-supabase-slim.json",
             "/v1/branching.md",
+            "/v1/imports.md",
         ):
             return True
         if not API_TOKEN:
@@ -133,6 +134,7 @@ class SyncApiHandler(BaseHTTPRequestHandler):
                         "GET /health",
                         "GET /v1/jrp-supabase-slim.json",
                         "GET /v1/branching.md",
+                        "GET /v1/imports.md",
                         "GET /v1/environments",
                         "POST /v1/environments",
                         "POST /v1/environments/setup",
@@ -185,6 +187,10 @@ class SyncApiHandler(BaseHTTPRequestHandler):
 
         if path == "/v1/branching.md":
             self.send_markdown(200, read_branching_doc())
+            return
+
+        if path == "/v1/imports.md":
+            self.send_markdown(200, read_import_doc())
             return
 
         if parts == ["v1", "environments"]:

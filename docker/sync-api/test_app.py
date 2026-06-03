@@ -697,10 +697,20 @@ class BranchingDocumentationTests(unittest.TestCase):
         self.assertIn("application/json", route["responses"]["200"]["content"])
         self.assertNotIn("/v1/openapi.json", definition["paths"])
         self.assertIn("/v1/imports/platform-to-local", definition["paths"])
+        self.assertIn("/v1/imports.md", definition["paths"])
+        self.assertIn("progress", definition["components"]["schemas"]["JobSummary"]["properties"])
+        self.assertIn("JobProgress", definition["components"]["schemas"])
 
     def test_openapi_exposes_public_branching_guide(self):
         definition = app.read_openapi_definition()
         route = definition["paths"]["/v1/branching.md"]["get"]
+
+        self.assertEqual(route["security"], [])
+        self.assertIn("text/markdown", route["responses"]["200"]["content"])
+
+    def test_openapi_exposes_public_import_guide(self):
+        definition = app.read_openapi_definition()
+        route = definition["paths"]["/v1/imports.md"]["get"]
 
         self.assertEqual(route["security"], [])
         self.assertIn("text/markdown", route["responses"]["200"]["content"])
@@ -715,6 +725,17 @@ class BranchingDocumentationTests(unittest.TestCase):
                 self.assertEqual(app.read_branching_doc(), "# Branching\n")
             finally:
                 app.BRANCHING_DOC_FILE = original_doc_file
+
+    def test_import_doc_reads_configured_markdown_file(self):
+        original_doc_file = app.IMPORT_DOC_FILE
+        with tempfile.TemporaryDirectory() as tmpdir:
+            doc_file = Path(tmpdir) / "imports.md"
+            doc_file.write_text("# Imports\n")
+            app.IMPORT_DOC_FILE = doc_file
+            try:
+                self.assertEqual(app.read_import_doc(), "# Imports\n")
+            finally:
+                app.IMPORT_DOC_FILE = original_doc_file
 
 
 class ImportPlanTests(unittest.TestCase):
@@ -920,6 +941,42 @@ class ImportPlanTests(unittest.TestCase):
         self.assertEqual(job["id"], "job-id")
         self.assertEqual(calls[0][0], "import_platform_to_local")
         self.assertIn("--schema-only", calls[0][2])
+
+    def test_job_progress_merges_details(self):
+        job_id = "progress-test"
+        with app.jobs_lock:
+            app.jobs[job_id] = {
+                "id": job_id,
+                "progress": {
+                    "phase": "queued",
+                    "percent": 0,
+                    "message": "Queued",
+                    "updated_at_ms": 1,
+                    "details": {"existing": True},
+                },
+            }
+
+        try:
+            app.update_job_progress(
+                job_id,
+                "database_import",
+                35,
+                "Importing database",
+                {"table_count": 12},
+            )
+            with app.jobs_lock:
+                progress = dict(app.jobs[job_id]["progress"])
+        finally:
+            with app.jobs_lock:
+                app.jobs.pop(job_id, None)
+
+        self.assertEqual(progress["phase"], "database_import")
+        self.assertEqual(progress["percent"], 35)
+        self.assertEqual(progress["message"], "Importing database")
+        self.assertEqual(
+            progress["details"],
+            {"existing": True, "table_count": 12},
+        )
 
 
 if __name__ == "__main__":

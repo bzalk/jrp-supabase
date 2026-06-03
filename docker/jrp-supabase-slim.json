@@ -2107,6 +2107,42 @@
         },
         "type": "object"
       },
+      "JobProgress": {
+        "additionalProperties": false,
+        "properties": {
+          "details": {
+            "additionalProperties": true,
+            "description": "Job-specific metadata useful for detail panes, such as database mode, largest tables, and copy limitations.",
+            "type": "object"
+          },
+          "message": {
+            "description": "Human-readable status message.",
+            "type": "string"
+          },
+          "percent": {
+            "description": "Best-effort percentage for progress bars.",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "phase": {
+            "description": "Machine-readable progress phase for UI state.",
+            "type": "string"
+          },
+          "updated_at_ms": {
+            "description": "Unix epoch timestamp in milliseconds.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "phase",
+          "percent",
+          "message",
+          "updated_at_ms",
+          "details"
+        ],
+        "type": "object"
+      },
       "JobSummary": {
         "properties": {
           "command": {
@@ -2139,13 +2175,23 @@
           },
           "kind": {
             "enum": [
-              "validate",
+              "branch_create",
+              "branch_delete",
+              "branch_merge",
+              "branch_reset",
+              "branch_save",
+              "branch_switch",
+              "import_platform_to_local",
               "plan",
-              "up",
+              "reset_destination",
               "reset_source",
-              "reset_destination"
+              "up",
+              "validate"
             ],
             "type": "string"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/JobProgress"
           },
           "started_at_ms": {
             "type": [
@@ -4374,6 +4420,24 @@
           }
         },
         "summary": "Validate source and target connectivity"
+      }
+    },
+    "/v1/imports.md": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Markdown guide for import/clone UX integration"
+          }
+        },
+        "security": [],
+        "summary": "Frontend import and clone API guide"
       }
     },
     "/v1/imports/plan": {

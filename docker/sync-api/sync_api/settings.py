@@ -36,6 +36,9 @@ OPENAPI_FILE = Path(
 BRANCHING_DOC_FILE = Path(
     os.environ.get("SYNC_API_BRANCHING_DOC_FILE", "/app/branching.md")
 )
+IMPORT_DOC_FILE = Path(
+    os.environ.get("SYNC_API_IMPORT_DOC_FILE", "/app/imports.md")
+)
 PROMOTE_SCRIPT = os.environ.get(
     "PROMOTE_MIGRATIONS_SCRIPT", "/opt/sync-api/promote-migrations.sh"
 )

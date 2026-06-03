@@ -124,6 +124,13 @@ def start_job(kind, env_name, command, runner=None):
         "finished_at_ms": None,
         "command": redact_command(command),
         "output": "",
+        "progress": {
+            "phase": "queued",
+            "percent": 0,
+            "message": "Queued",
+            "updated_at_ms": now_ms(),
+            "details": {},
+        },
     }
 
     with jobs_lock:
@@ -237,11 +244,31 @@ def append_job_output(job_id, text):
             job["output"] = job["output"][-200_000:]
 
 
+def update_job_progress(job_id, phase, percent, message=None, details=None):
+    percent = max(0, min(100, int(percent)))
+    with jobs_lock:
+        job = jobs.get(job_id)
+        if not job:
+            return
+        current = job.get("progress") or {}
+        merged_details = dict(current.get("details") or {})
+        if details:
+            merged_details.update(details)
+        job["progress"] = {
+            "phase": phase,
+            "percent": percent,
+            "message": message or phase.replace("_", " ").title(),
+            "updated_at_ms": now_ms(),
+            "details": merged_details,
+        }
+
+
 def run_job(job_id, command):
     with jobs_lock:
         jobs[job_id]["status"] = "running"
         jobs[job_id]["started_at_ms"] = now_ms()
         job = dict(jobs[job_id])
+    update_job_progress(job_id, "running", 5, "Job started")
 
     audit_log(
         {
@@ -274,6 +301,12 @@ def run_job(job_id, command):
             jobs[job_id]["status"] = "succeeded" if exit_code == 0 else "failed"
             jobs[job_id]["finished_at_ms"] = now_ms()
             job = dict(jobs[job_id])
+        update_job_progress(
+            job_id,
+            "succeeded" if exit_code == 0 else "failed",
+            100 if exit_code == 0 else 95,
+            "Job completed" if exit_code == 0 else "Job failed",
+        )
         audit_log(
             {
                 "type": "job",
@@ -297,6 +330,7 @@ def run_job(job_id, command):
             jobs[job_id]["status"] = "failed"
             jobs[job_id]["finished_at_ms"] = now_ms()
             job = dict(jobs[job_id])
+        update_job_progress(job_id, "failed", 95, "Job failed")
         audit_log(
             {
                 "type": "job",
@@ -320,6 +354,7 @@ def run_callable_job(job_id, runner):
         jobs[job_id]["status"] = "running"
         jobs[job_id]["started_at_ms"] = now_ms()
         job = dict(jobs[job_id])
+    update_job_progress(job_id, "running", 5, "Job started")
 
     audit_log(
         {
@@ -339,6 +374,7 @@ def run_callable_job(job_id, runner):
             jobs[job_id]["status"] = "succeeded"
             jobs[job_id]["finished_at_ms"] = now_ms()
             job = dict(jobs[job_id])
+        update_job_progress(job_id, "succeeded", 100, "Job completed")
         audit_log(
             {
                 "type": "job",
@@ -362,6 +398,7 @@ def run_callable_job(job_id, runner):
             jobs[job_id]["status"] = "failed"
             jobs[job_id]["finished_at_ms"] = now_ms()
             job = dict(jobs[job_id])
+        update_job_progress(job_id, "failed", 95, "Job failed")
         audit_log(
             {
                 "type": "job",

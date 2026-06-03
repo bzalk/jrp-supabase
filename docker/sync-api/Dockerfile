@@ -14,6 +14,7 @@ COPY app.py /app/app.py
 COPY sync_api /app/sync_api
 COPY jrp-supabase-slim.json /app/jrp-supabase-slim.json
 COPY branching.md /app/branching.md
+COPY imports.md /app/imports.md
 
 ENV SYNC_API_HOST=0.0.0.0
 ENV SYNC_API_PORT=8080

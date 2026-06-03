@@ -414,8 +414,60 @@ def add_branch_openapi(definition):
                     },
                 ]
             },
+            "JobProgress": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "phase": {
+                        "type": "string",
+                        "description": "Machine-readable progress phase for UI state.",
+                    },
+                    "percent": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100,
+                        "description": "Best-effort percentage for progress bars.",
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Human-readable status message.",
+                    },
+                    "updated_at_ms": {
+                        "type": "integer",
+                        "description": "Unix epoch timestamp in milliseconds.",
+                    },
+                    "details": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "description": (
+                            "Job-specific metadata useful for detail panes, such as "
+                            "database mode, largest tables, and copy limitations."
+                        ),
+                    },
+                },
+                "required": ["phase", "percent", "message", "updated_at_ms", "details"],
+            },
         }
     )
+
+    job_summary = schemas.get("JobSummary")
+    if isinstance(job_summary, dict):
+        job_properties = job_summary.setdefault("properties", {})
+        kind_schema = job_properties.get("kind")
+        if isinstance(kind_schema, dict) and isinstance(kind_schema.get("enum"), list):
+            kind_schema["enum"] = sorted(
+                set(kind_schema["enum"])
+                | {
+                    "branch_create",
+                    "branch_delete",
+                    "branch_merge",
+                    "branch_reset",
+                    "branch_save",
+                    "branch_switch",
+                    "import_platform_to_local",
+                }
+            )
+        job_properties["progress"] = {"$ref": "#/components/schemas/JobProgress"}
 
     paths.update(
         {
@@ -490,6 +542,22 @@ def add_branch_openapi(definition):
                         "202": {"$ref": "#/components/responses/JobAccepted"},
                         "400": error_response,
                         "401": error_response,
+                    },
+                }
+            },
+            "/v1/imports.md": {
+                "get": {
+                    "summary": "Frontend import and clone API guide",
+                    "security": [],
+                    "responses": {
+                        "200": {
+                            "description": "Markdown guide for import/clone UX integration",
+                            "content": {
+                                "text/markdown": {
+                                    "schema": {"type": "string"}
+                                }
+                            },
+                        }
                     },
                 }
             },
@@ -871,4 +939,11 @@ def read_branching_doc():
     if BRANCHING_DOC_FILE.exists():
         return BRANCHING_DOC_FILE.read_text()
     local = Path(__file__).resolve().parents[1] / "branching.md"
+    return local.read_text()
+
+
+def read_import_doc():
+    if IMPORT_DOC_FILE.exists():
+        return IMPORT_DOC_FILE.read_text()
+    local = Path(__file__).resolve().parents[1] / "imports.md"
     return local.read_text()

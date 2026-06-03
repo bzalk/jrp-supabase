@@ -1,5 +1,5 @@
 from .settings import *
-from .audit import append_job_output, start_job
+from .audit import append_job_output, start_job, update_job_progress
 from .http_utils import parse_bool_body
 from .import_plan import (
     build_import_plan,
@@ -97,10 +97,55 @@ def platform_to_local_command_summary(source, target, options):
     return command
 
 
+def database_progress_summary(database):
+    if not isinstance(database, dict) or not database.get("available"):
+        return {
+            "available": False,
+            "error": database.get("error") if isinstance(database, dict) else None,
+        }
+    return {
+        "available": True,
+        "endpoint": database.get("endpoint"),
+        "table_count": database.get("table_count"),
+        "estimated_total_table_bytes": database.get("estimated_total_table_bytes"),
+        "storage_bucket_count": database.get("storage_bucket_count"),
+        "largest_tables": database.get("largest_tables", [])[:10],
+    }
+
+
+def import_progress_details(plan, options):
+    return {
+        "database_mode": options["database_mode"],
+        "include_table_data": options["include_table_data"],
+        "include_edge_functions": options["reset_edge_functions"],
+        "include_storage_objects": options["include_storage_objects"],
+        "source_database": database_progress_summary(plan["source"]["database"]),
+        "target_database": database_progress_summary(plan["target"]["database"]),
+        "progress_granularity": (
+            "phase"
+            if options["reset_database"]
+            else "phase-no-database"
+        ),
+        "table_progress_note": (
+            "This first implementation uses pg_dump/pg_restore, so progress is reported by phase. "
+            "Per-table copy progress requires a future table-by-table restore workflow."
+        ),
+    }
+
+
 def run_platform_to_local_job(job_id, body):
     options = parse_platform_to_local_options(body)
     config, source, target = platform_to_local_config(body)
+    update_job_progress(job_id, "planning", 10, "Building import plan")
     plan = build_import_plan(body)
+    progress_details = import_progress_details(plan, options)
+    update_job_progress(
+        job_id,
+        "planned",
+        20,
+        "Import plan built",
+        progress_details,
+    )
 
     append_job_output(job_id, "Platform-to-local import started\n")
     append_job_output(
@@ -124,6 +169,13 @@ def run_platform_to_local_job(job_id, body):
     )
 
     if options["dry_run"]:
+        update_job_progress(
+            job_id,
+            "dry_run",
+            90,
+            "Dry run complete",
+            progress_details,
+        )
         append_job_output(job_id, "Dry run only; no changes will be written.\n")
         append_job_output(
             job_id,
@@ -140,27 +192,47 @@ def run_platform_to_local_job(job_id, body):
         return
 
     if not plan["source"]["database"].get("available"):
+        update_job_progress(job_id, "failed", 95, "Source database is not available")
         raise RuntimeError(
             "Source database is not available: "
             + plan["source"]["database"].get("error", "unknown error")
         )
     if not plan["target"]["database"].get("available"):
+        update_job_progress(job_id, "failed", 95, "Target database is not available")
         raise RuntimeError(
             "Target database is not available: "
             + plan["target"]["database"].get("error", "unknown error")
         )
 
     if options["reset_database"]:
+        update_job_progress(
+            job_id,
+            "database_import",
+            35,
+            "Importing database with pg_dump/pg_restore",
+            progress_details,
+        )
         reset_database_copy(job_id, config, config["name"], "source", "target", options)
+        update_job_progress(job_id, "database_imported", 75, "Database import completed")
     else:
         append_job_output(job_id, "Database import disabled by reset_database=false\n")
+        update_job_progress(job_id, "database_skipped", 75, "Database import skipped")
 
     if options["reset_edge_functions"]:
+        update_job_progress(
+            job_id,
+            "edge_functions",
+            82,
+            "Copying edge functions",
+        )
         reset_edge_functions(job_id, config, config["name"], "source", "target", options)
+        update_job_progress(job_id, "edge_functions_imported", 92, "Edge functions copied")
     else:
         append_job_output(job_id, "Edge function import disabled\n")
+        update_job_progress(job_id, "edge_functions_skipped", 92, "Edge functions skipped")
 
     append_job_output(job_id, "Platform-to-local import completed.\n")
+    update_job_progress(job_id, "finalizing", 98, "Finalizing import job")
 
 
 def start_platform_to_local_import(body):

@@ -8,6 +8,7 @@ The current implementation supports:
 - Listing Supabase organizations and projects.
 - Fetching project metadata and backup metadata.
 - Creating a read-only import plan.
+- Exposing import job progress through the existing job polling endpoint.
 
 The current implementation can plan an import and start a first platform-to-local database import job through `POST /v1/imports/platform-to-local`.
 
@@ -40,6 +41,7 @@ Public endpoints:
 GET /health
 GET /v1/jrp-supabase-slim.json
 GET /v1/branching.md
+GET /v1/imports.md
 ```
 
 ## Supabase Account Auth
@@ -76,6 +78,7 @@ GET  /v1/supabase/projects/{ref}/backups
 
 POST /v1/imports/plan
 POST /v1/imports/platform-to-local
+GET  /v1/jobs/{id}
 ```
 
 ## List Organizations
@@ -433,6 +436,90 @@ supabase-db
 ```
 
 Do not use `supabase_db_local` for this deployment. That container does not exist on the current VPS and will make the plan report that platform-to-local cannot run now.
+
+## Import Job Progress
+
+`POST /v1/imports/platform-to-local` returns `202 Accepted` with a job. Poll the job until it reaches `succeeded` or `failed`.
+
+```http
+GET /v1/jobs/{id}
+Authorization: Bearer <SYNC_API_TOKEN>
+```
+
+Response shape:
+
+```json
+{
+  "job": {
+    "id": "7d77f41f-8657-43d6-a6d6-890097c5148c",
+    "kind": "import_platform_to_local",
+    "environment": "platform-to-local",
+    "status": "running",
+    "exit_code": null,
+    "progress": {
+      "phase": "database_import",
+      "percent": 35,
+      "message": "Importing database with pg_dump/pg_restore",
+      "updated_at_ms": 1780000001000,
+      "details": {
+        "database_mode": "schema-and-data",
+        "include_table_data": true,
+        "include_edge_functions": false,
+        "include_storage_objects": false,
+        "source_database": {
+          "available": true,
+          "endpoint": "aws-0-region.pooler.supabase.com/postgres",
+          "table_count": 12,
+          "estimated_total_table_bytes": 123456,
+          "storage_bucket_count": 2,
+          "largest_tables": []
+        },
+        "target_database": {
+          "available": true,
+          "endpoint": "supabase-db/postgres",
+          "table_count": 0,
+          "estimated_total_table_bytes": 0,
+          "storage_bucket_count": 0,
+          "largest_tables": []
+        },
+        "progress_granularity": "phase",
+        "table_progress_note": "This first implementation uses pg_dump/pg_restore, so progress is reported by phase. Per-table copy progress requires a future table-by-table restore workflow."
+      }
+    },
+    "output": "Platform-to-local import started\n..."
+  }
+}
+```
+
+Known phases:
+
+```text
+queued
+running
+planning
+planned
+dry_run
+database_import
+database_imported
+database_skipped
+edge_functions
+edge_functions_imported
+edge_functions_skipped
+finalizing
+succeeded
+failed
+```
+
+Recommended UI behavior:
+
+1. Poll every 1-2 seconds while `status` is `queued` or `running`.
+2. Stop polling when `status` is `succeeded` or `failed`.
+3. Use `progress.percent` for the progress bar.
+4. Use `progress.message` as the current status line.
+5. Show `progress.details.source_database.largest_tables` in the plan/review step and in a job detail drawer.
+6. Put `job.output` behind an expandable log panel.
+
+Progress is currently phase-level. The first implementation uses `pg_dump`/`pg_restore`, so it cannot accurately report exact table-by-table copy bytes. The plan and progress details include largest table metadata so the UI can identify likely long-running tables before execution.
 
 Current execution limitations:
 
