@@ -59,6 +59,8 @@ def platform_to_local_config(body):
         raise ValueError("source.db_url is required for platform-to-local import")
     if not target.get("db_url") and not target.get("container"):
         target["container"] = "supabase-db"
+    if target.get("type") == "local" and target.get("container") and not target.get("reset_user"):
+        target["reset_user"] = "supabase_admin"
 
     config = {
         "name": body.get("name") or body.get("environment") or "platform-to-local",

@@ -20,11 +20,16 @@ def database_endpoint_from_config(config, role, default_user="supabase_admin"):
 
 
 def reset_database_endpoint_from_config(config, role):
-    return database_endpoint_from_config(
-        config,
-        role,
-        default_user=config.get(f"{role}_reset_user", "postgres"),
-    )
+    reset_user = config.get(f"{role}_reset_user")
+    if reset_user:
+        reset_config = dict(config)
+        reset_config[f"{role}_user"] = reset_user
+        return database_endpoint_from_config(
+            reset_config,
+            role,
+            default_user=reset_user,
+        )
+    return database_endpoint_from_config(config, role, default_user="postgres")
 
 
 def psql_command(endpoint):

@@ -410,6 +410,19 @@ class BranchManagerTests(unittest.TestCase):
         self.assertIn("--use-list", command)
         self.assertIn("/data/restore.list", command)
 
+    def test_reset_database_endpoint_prefers_reset_user(self):
+        endpoint = app.reset_database_endpoint_from_config(
+            {
+                "target_container": "supabase-db",
+                "target_user": "postgres",
+                "target_reset_user": "supabase_admin",
+                "target_db_name": "postgres",
+            },
+            "target",
+        )
+
+        self.assertEqual(endpoint["user"], "supabase_admin")
+
     def test_branch_database_endpoint_defaults_to_owner_capable_local_role(self):
         original_db_url = app.BRANCH_DB_URL
         original_user = app.BRANCH_DB_USER
@@ -1121,6 +1134,7 @@ class ImportPlanTests(unittest.TestCase):
         self.assertEqual(source["project_ref"], "project-ref")
         self.assertEqual(target["container"], "supabase-db")
         self.assertEqual(config["target_container"], "supabase-db")
+        self.assertEqual(config["target_reset_user"], "supabase_admin")
 
     def test_platform_to_local_normalizes_legacy_local_target_container(self):
         config, source, target = app.platform_to_local_config(
