@@ -2354,7 +2354,7 @@
           {
             "properties": {
               "confirm": {
-                "description": "Required unless dry_run is true. Must be exactly IMPORT PLATFORM TO LOCAL.",
+                "description": "Required unless dry_run is true. Must be exactly CONFIRM.",
                 "type": "string"
               },
               "drop_target_schemas": {

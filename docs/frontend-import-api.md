@@ -392,7 +392,7 @@ Destructive imports require explicit confirmation:
 
 ```json
 {
-  "confirm": "IMPORT PLATFORM TO LOCAL",
+  "confirm": "CONFIRM",
   "database_mode": "schema-and-data",
   "source": {
     "type": "platform",

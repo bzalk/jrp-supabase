@@ -100,7 +100,7 @@ This starts a long-running job. Destructive imports require:
 
 ```json
 {
-  "confirm": "IMPORT PLATFORM TO LOCAL"
+  "confirm": "CONFIRM"
 }
 ```
 
@@ -108,7 +108,7 @@ Example schema-and-data request:
 
 ```json
 {
-  "confirm": "IMPORT PLATFORM TO LOCAL",
+  "confirm": "CONFIRM",
   "database_mode": "schema-and-data",
   "source": {
     "type": "platform",

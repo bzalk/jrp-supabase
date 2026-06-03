@@ -11,7 +11,7 @@ from .import_plan import (
 from .operations import reset_database_copy, reset_edge_functions
 
 
-PLATFORM_TO_LOCAL_CONFIRMATION = "IMPORT PLATFORM TO LOCAL"
+PLATFORM_TO_LOCAL_CONFIRMATION = "CONFIRM"
 
 
 def parse_platform_to_local_options(body):

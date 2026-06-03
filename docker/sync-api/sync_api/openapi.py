@@ -395,7 +395,7 @@ def add_branch_openapi(definition):
                                 "type": "string",
                                 "description": (
                                     "Required unless dry_run is true. Must be exactly "
-                                    "IMPORT PLATFORM TO LOCAL."
+                                    "CONFIRM."
                                 ),
                             },
                             "dry_run": {"type": "boolean", "default": False},

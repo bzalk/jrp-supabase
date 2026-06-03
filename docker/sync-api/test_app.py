@@ -886,7 +886,7 @@ class ImportPlanTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             app.parse_platform_to_local_options(
                 {
-                    "confirm": "IMPORT PLATFORM TO LOCAL",
+                    "confirm": "CONFIRM",
                     "database_mode": "schema-and-data",
                     "include_auth_data": False,
                     "source": {
@@ -925,7 +925,7 @@ class ImportPlanTests(unittest.TestCase):
         try:
             job = app.start_platform_to_local_import(
                 {
-                    "confirm": "IMPORT PLATFORM TO LOCAL",
+                    "confirm": "CONFIRM",
                     "database_mode": "schema-only",
                     "source": {
                         "type": "platform",

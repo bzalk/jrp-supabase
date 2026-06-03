@@ -154,7 +154,7 @@ Implement:
 POST /v1/imports/platform-to-local
 ```
 
-Status: first implementation added. It starts a long-running import job, requires `confirm: "IMPORT PLATFORM TO LOCAL"` unless `dry_run` is true, imports database state with `pg_dump`/`pg_restore`, and keeps sync-api tool state outside both source and target Supabase databases.
+Status: first implementation added. It starts a long-running import job, requires `confirm: "CONFIRM"` unless `dry_run` is true, imports database state with `pg_dump`/`pg_restore`, and keeps sync-api tool state outside both source and target Supabase databases.
 
 Pending follow-up work:
 
