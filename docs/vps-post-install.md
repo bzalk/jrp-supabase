@@ -67,14 +67,21 @@ runs the normal installer again.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh \
-  | CONFIRM_RESET=RESET bash -s -- example.com
+  | CONFIRM_RESET=CONFIRM bash -s -- example.com
 ```
 
 To wipe without reinstalling:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh \
-  | CONFIRM_RESET=RESET RUN_INSTALL=false bash -s -- example.com
+  | CONFIRM_RESET=CONFIRM RUN_INSTALL=false bash -s -- example.com
+```
+
+Equivalent CLI-argument form:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh \
+  | bash -s -- example.com --confirm CONFIRM
 ```
 
 GitHub is used only as a read-only source for downloading scripts and cloning

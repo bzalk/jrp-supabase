@@ -7,6 +7,7 @@ INSTALL_DIR="${JRP_INSTALL_DIR:-/opt/jrp-supabase}"
 BASE_DOMAIN="${BASE_DOMAIN:-}"
 RUN_INSTALL="${RUN_INSTALL:-true}"
 CONFIRM_RESET="${CONFIRM_RESET:-}"
+CONFIRM="${CONFIRM:-}"
 RESET_LOG_FILE="${RESET_LOG_FILE:-/root/jrp-reset-vps-$(date -u +%Y%m%dT%H%M%SZ).log}"
 PRUNE_DOCKER_SYSTEM="${PRUNE_DOCKER_SYSTEM:-false}"
 
@@ -55,9 +56,48 @@ KNOWN_IMAGES=(
   supabase-studio-mcp:local
 )
 
-if [ -z "$BASE_DOMAIN" ] && [ -n "${1:-}" ]; then
-  BASE_DOMAIN="$1"
-fi
+parse_args() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --confirm)
+        [ -n "${2:-}" ] || fail "--confirm requires a value"
+        CONFIRM_RESET="$2"
+        shift 2
+        ;;
+      --confirm=*)
+        CONFIRM_RESET="${1#--confirm=}"
+        shift
+        ;;
+      --no-install)
+        RUN_INSTALL=false
+        shift
+        ;;
+      --install)
+        RUN_INSTALL=true
+        shift
+        ;;
+      --prune-docker-system)
+        PRUNE_DOCKER_SYSTEM=true
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        fail "unknown argument: $1"
+        ;;
+      *)
+        if [ -z "$BASE_DOMAIN" ]; then
+          BASE_DOMAIN="$1"
+        else
+          fail "unexpected argument: $1"
+        fi
+        shift
+        ;;
+    esac
+  done
+}
 
 log() {
   printf '[jrp-reset] %s\n' "$*"
@@ -75,15 +115,19 @@ require_root() {
 }
 
 confirm_reset() {
-  if [ "$CONFIRM_RESET" != "RESET" ]; then
+  local confirmation="${CONFIRM_RESET:-$CONFIRM}"
+
+  if [ "$confirmation" != "CONFIRM" ] && [ "$confirmation" != "RESET" ]; then
     cat >&2 <<EOF
 [jrp-reset] This is destructive.
 [jrp-reset] It removes the local JRP Supabase checkout, stack containers,
 [jrp-reset] project Docker volumes, and local bind-mounted data under:
 [jrp-reset]   ${INSTALL_DIR}
 [jrp-reset]
-[jrp-reset] Re-run with:
-[jrp-reset]   CONFIRM_RESET=RESET
+[jrp-reset] Re-run with one of:
+[jrp-reset]   CONFIRM_RESET=CONFIRM
+[jrp-reset]   CONFIRM=CONFIRM
+[jrp-reset]   --confirm CONFIRM
 EOF
     exit 2
   fi
@@ -230,6 +274,7 @@ run_fresh_install() {
 }
 
 main() {
+  parse_args "$@"
   exec > >(tee -a "$RESET_LOG_FILE") 2>&1
   require_root
   confirm_reset
