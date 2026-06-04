@@ -217,7 +217,7 @@ recreate_traefik_routes() {
   docker compose "${COMPOSE_FILES[@]}" stop "${ROUTED_SERVICES[@]}" || true
   docker compose "${COMPOSE_FILES[@]}" rm -sf "${ROUTED_SERVICES[@]}" || true
   cleanup_stale_compose_temp_containers
-  docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate "${ROUTED_SERVICES[@]}"
+  docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate --no-deps "${ROUTED_SERVICES[@]}"
 }
 
 certificate_issuer() {

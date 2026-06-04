@@ -93,7 +93,9 @@ values, verifies DNS, force recreates Traefik plus the containers that carry
 Traefik labels, and waits for Let's Encrypt certificates. It also removes stale
 Docker Compose recreate containers with names like `66afc95e6c6b_authelia`,
 which can be left behind by an interrupted `up --force-recreate` and block the
-next repair run. It does not remove database containers or Docker volumes.
+next repair run. It recreates only the route containers with `--no-deps`, so a
+separate unhealthy Supabase service such as analytics cannot block TLS repair.
+It does not remove database containers or Docker volumes.
 
 Optional repair overrides:
 
