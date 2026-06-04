@@ -4643,6 +4643,91 @@
         "summary": "JRP Supabase Slim Sync API definition"
       }
     },
+    "/v1/repair-logs": {
+      "get": {
+        "description": "Unauthenticated read-only endpoint for repair log metadata. The VPS repair script writes these logs before it attempts Docker/Traefik changes so the UX can link to full diagnostics when a repair request times out.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Repair log list"
+          }
+        },
+        "security": [],
+        "summary": "List Traefik SSL repair logs"
+      }
+    },
+    "/v1/repair-logs/latest": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Latest repair log"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [],
+        "summary": "Read the latest Traefik SSL repair log"
+      }
+    },
+    "/v1/repair-logs/{name}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Repair log"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [],
+        "summary": "Read a named Traefik SSL repair log"
+      }
+    },
     "/v1/supabase/organizations": {
       "get": {
         "description": "Send the Supabase Management API token in X-Supabase-Access-Token or configure SUPABASE_ACCESS_TOKEN.",

@@ -39,6 +39,9 @@ BRANCHING_DOC_FILE = Path(
 IMPORT_DOC_FILE = Path(
     os.environ.get("SYNC_API_IMPORT_DOC_FILE", "/app/imports.md")
 )
+REPAIR_LOGS_DIR = Path(
+    os.environ.get("SYNC_API_REPAIR_LOGS_DIR", "/repair-logs")
+)
 PROMOTE_SCRIPT = os.environ.get(
     "PROMOTE_MIGRATIONS_SCRIPT", "/opt/sync-api/promote-migrations.sh"
 )

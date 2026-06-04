@@ -204,10 +204,12 @@ services:
       SYNC_API_BRANCH_STORAGE_SERVICE_CONTAINERS: supabase-storage supabase-imgproxy
       SYNC_API_LOCAL_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORGANIZATION:-Default Organization}
       SYNC_API_LOCAL_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT:-Default Project}
+      SYNC_API_REPAIR_LOGS_DIR: /repair-logs
       SUPABASE_ACCESS_TOKEN: ${SUPABASE_ACCESS_TOKEN:-}
     volumes:
       - sync-api-data:/data
       - ./branches:/data/branches:z
+      - ./repair-logs:/repair-logs:ro,z
       - ./utils/promote-migrations.sh:/opt/sync-api/promote-migrations.sh:ro,z
       - ./volumes/functions:/edge-functions:z
       - ./volumes/storage:/supabase-storage:z

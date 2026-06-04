@@ -10,6 +10,66 @@ from .import_plan import *
 from .sync_definition import *
 from .operations import *
 
+REPAIR_LOG_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+\.log$")
+
+
+def _safe_repair_log_path(name):
+    if name == "latest":
+        candidate = REPAIR_LOGS_DIR / "latest.log"
+    elif REPAIR_LOG_NAME_RE.match(name):
+        candidate = REPAIR_LOGS_DIR / name
+    else:
+        raise ValueError("Repair log not found")
+
+    root = REPAIR_LOGS_DIR.resolve()
+    resolved = candidate.resolve()
+    if root != resolved and root not in resolved.parents:
+        raise ValueError("Repair log not found")
+    if not resolved.exists() or not resolved.is_file():
+        raise ValueError("Repair log not found")
+    return resolved
+
+
+def _repair_log_entry(path):
+    stat = path.stat()
+    return {
+        "name": path.name,
+        "size_bytes": stat.st_size,
+        "modified_at_ms": int(stat.st_mtime * 1000),
+        "latest": path.name == "latest.log",
+        "url": f"/v1/repair-logs/{path.name}",
+    }
+
+
+def list_repair_logs():
+    if not REPAIR_LOGS_DIR.exists():
+        return {"logs": [], "latest": None}
+
+    entries = []
+    for path in REPAIR_LOGS_DIR.glob("*.log"):
+        if not path.is_file() and not path.is_symlink():
+            continue
+        try:
+            entries.append(_repair_log_entry(path.resolve()))
+        except FileNotFoundError:
+            continue
+
+    entries.sort(key=lambda item: item["modified_at_ms"], reverse=True)
+    latest = None
+    try:
+        latest_path = _safe_repair_log_path("latest")
+        latest = _repair_log_entry(latest_path)
+        latest["url"] = "/v1/repair-logs/latest"
+    except ValueError:
+        pass
+    return {"logs": entries, "latest": latest}
+
+
+def read_repair_log(name):
+    path = _safe_repair_log_path(name)
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
 class SyncApiHandler(BaseHTTPRequestHandler):
     server_version = "sync-api/0.1"
 
@@ -36,11 +96,23 @@ class SyncApiHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_text(self, status, body_text):
+        self._response_status = status
+        self._response_summary = {"text_chars": len(body_text)}
+        body = body_text.encode("utf-8", errors="replace")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def send_error_json(self, status, message):
         self.send_json(status, {"error": message})
 
     def authenticate(self):
         path = urlparse(self.path).path
+        if path == "/v1/repair-logs" or path.startswith("/v1/repair-logs/"):
+            return True
         if path in (
             "/health",
             "/v1/jrp-supabase-slim.json",
@@ -135,6 +207,9 @@ class SyncApiHandler(BaseHTTPRequestHandler):
                         "GET /v1/jrp-supabase-slim.json",
                         "GET /v1/branching.md",
                         "GET /v1/imports.md",
+                        "GET /v1/repair-logs",
+                        "GET /v1/repair-logs/latest",
+                        "GET /v1/repair-logs/{name}",
                         "GET /v1/environments",
                         "POST /v1/environments",
                         "POST /v1/environments/setup",
@@ -191,6 +266,17 @@ class SyncApiHandler(BaseHTTPRequestHandler):
 
         if path == "/v1/imports.md":
             self.send_markdown(200, read_import_doc())
+            return
+
+        if parts == ["v1", "repair-logs"]:
+            self.send_json(200, list_repair_logs())
+            return
+
+        if len(parts) == 3 and parts[:2] == ["v1", "repair-logs"]:
+            try:
+                self.send_text(200, read_repair_log(parts[2]))
+            except ValueError as exc:
+                self.send_error_json(404, str(exc))
             return
 
         if parts == ["v1", "environments"]:

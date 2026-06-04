@@ -1126,6 +1126,40 @@ class BranchingDocumentationTests(unittest.TestCase):
         self.assertEqual(route["security"], [])
         self.assertIn("text/markdown", route["responses"]["200"]["content"])
 
+    def test_sync_definition_exposes_public_repair_logs(self):
+        definition = app.read_sync_api_definition()
+
+        self.assertEqual(definition["paths"]["/v1/repair-logs"]["get"]["security"], [])
+        self.assertEqual(
+            definition["paths"]["/v1/repair-logs/latest"]["get"]["security"],
+            [],
+        )
+        self.assertIn(
+            "text/plain",
+            definition["paths"]["/v1/repair-logs/latest"]["get"]["responses"]["200"]["content"],
+        )
+
+    def test_repair_logs_read_from_configured_directory(self):
+        original_dir = app.REPAIR_LOGS_DIR
+        with tempfile.TemporaryDirectory() as tmpdir:
+            logs_dir = Path(tmpdir)
+            run_log = logs_dir / "traefik-ssl-repair-test.log"
+            latest_log = logs_dir / "latest.log"
+            run_log.write_text("full repair log\n")
+            latest_log.write_text("latest repair log\n")
+            app.REPAIR_LOGS_DIR = logs_dir
+            try:
+                listed = app.list_repair_logs()
+                self.assertEqual(app.read_repair_log("latest"), "latest repair log\n")
+                self.assertEqual(
+                    app.read_repair_log("traefik-ssl-repair-test.log"),
+                    "full repair log\n",
+                )
+                self.assertEqual(listed["latest"]["url"], "/v1/repair-logs/latest")
+                self.assertGreaterEqual(len(listed["logs"]), 2)
+            finally:
+                app.REPAIR_LOGS_DIR = original_dir
+
     def test_branching_doc_reads_configured_markdown_file(self):
         original_doc_file = app.BRANCHING_DOC_FILE
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -45,7 +45,7 @@ from sync_api.branches import *
 from sync_api.database import *
 from sync_api.edge_functions import *
 from sync_api.operations import *
-from sync_api.server import SyncApiHandler, main
+from sync_api.server import SyncApiHandler, list_repair_logs, main, read_repair_log
 
 
 _COMPONENT_MODULES = (

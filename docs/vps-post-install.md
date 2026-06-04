@@ -22,6 +22,14 @@ Public Traefik SSL repair URL:
 https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/repair-traefik-ssl.sh
 ```
 
+Public repair log endpoints on each installed Sync API:
+
+```text
+GET /v1/repair-logs
+GET /v1/repair-logs/latest
+GET /v1/repair-logs/{name}
+```
+
 Hostinger post-install example:
 
 ```bash
@@ -111,6 +119,20 @@ replacements. A Docker Compose stack lock prevents overlapping install and
 repair runs from recreating the same route containers at the same time. It does
 not remove database containers or Docker volumes.
 
+Every repair run writes a full log to:
+
+```text
+/opt/jrp-supabase/docker/repair-logs/
+```
+
+The log includes a preflight status report before the script mutates Docker
+state and a failure status report if the repair exits non-zero. When Sync API is
+reachable, the UX can link to:
+
+```text
+https://sync-api.example.com/v1/repair-logs/latest
+```
+
 Optional repair overrides:
 
 ```bash
@@ -119,10 +141,14 @@ export UPDATE_REPO="false"
 export VERIFY_DNS="true"
 export VERIFY_HTTPS="true"
 export ENABLE_UFW="true"
+export REPAIR_STATUS_ONLY="false"
 ```
 
 Set `UPDATE_REPO=true` only when you intentionally want the repair run to pull
 new stack files into that VPS checkout before repairing TLS.
+
+Set `REPAIR_STATUS_ONLY=true` to collect the same preflight status report and
+write the log without stopping, removing, or recreating any containers.
 
 After install:
 

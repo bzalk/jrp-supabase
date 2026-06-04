@@ -230,7 +230,7 @@ configure_env() {
   set_secret_if_unset_or_placeholder .env AUTHELIA_SESSION_SECRET "$(random_hex 32)"
   set_secret_if_unset_or_placeholder .env AUTHELIA_STORAGE_ENCRYPTION_KEY "$(random_hex 32)"
 
-  mkdir -p branches volumes/functions volumes/snippets volumes/storage volumes/authelia
+  mkdir -p branches repair-logs volumes/functions volumes/snippets volumes/storage volumes/authelia
   chmod 600 .env
 }
 

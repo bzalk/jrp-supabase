@@ -596,6 +596,58 @@ def add_sync_api_routes(definition):
                     },
                 }
             },
+            "/v1/repair-logs": {
+                "get": {
+                    "summary": "List Traefik SSL repair logs",
+                    "description": (
+                        "Unauthenticated read-only endpoint for repair log metadata. "
+                        "The VPS repair script writes these logs before it attempts "
+                        "Docker/Traefik changes so the UX can link to full diagnostics "
+                        "when a repair request times out."
+                    ),
+                    "security": [],
+                    "responses": {
+                        "200": {
+                            "description": "Repair log list",
+                            "content": {"application/json": {"schema": {"type": "object"}}},
+                        }
+                    },
+                }
+            },
+            "/v1/repair-logs/latest": {
+                "get": {
+                    "summary": "Read the latest Traefik SSL repair log",
+                    "security": [],
+                    "responses": {
+                        "200": {
+                            "description": "Latest repair log",
+                            "content": {"text/plain": {"schema": {"type": "string"}}},
+                        },
+                        "404": error_response,
+                    },
+                }
+            },
+            "/v1/repair-logs/{name}": {
+                "get": {
+                    "summary": "Read a named Traefik SSL repair log",
+                    "security": [],
+                    "parameters": [
+                        {
+                            "name": "name",
+                            "in": "path",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "Repair log",
+                            "content": {"text/plain": {"schema": {"type": "string"}}},
+                        },
+                        "404": error_response,
+                    },
+                }
+            },
             "/v1/supabase/organizations": {
                 "get": {
                     "summary": "List Supabase organizations for the supplied account token",

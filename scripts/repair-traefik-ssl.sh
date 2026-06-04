@@ -13,10 +13,16 @@ LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 VERIFY_DNS="${VERIFY_DNS:-true}"
 VERIFY_HTTPS="${VERIFY_HTTPS:-true}"
 ENABLE_UFW="${ENABLE_UFW:-true}"
+REPAIR_STATUS_ONLY="${REPAIR_STATUS_ONLY:-false}"
+REPAIR_LOG_DIR="${JRP_REPAIR_LOG_DIR:-${INSTALL_DIR}/docker/repair-logs}"
+REPAIR_RUN_ID="${JRP_REPAIR_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+REPAIR_LOG_FILE="${REPAIR_LOG_DIR}/traefik-ssl-repair-${REPAIR_RUN_ID}.log"
+REPAIR_LATEST_LOG="${REPAIR_LOG_DIR}/latest.log"
 COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.traefik.yml)
 ROUTED_SERVICES=(traefik studio authelia kong sync-api)
 ROUTED_CONTAINER_NAMES=(traefik supabase-studio authelia supabase-kong sync-api)
 REPO_UPDATED=false
+FINAL_STATUS_CAPTURED=false
 
 if [ -z "$BASE_DOMAIN" ] && [ -n "${1:-}" ]; then
   BASE_DOMAIN="$1"
@@ -29,6 +35,17 @@ log() {
 fail() {
   printf '[jrp-traefik-repair] ERROR: %s\n' "$*" >&2
   exit 1
+}
+
+init_logging() {
+  mkdir -p "$REPAIR_LOG_DIR"
+  touch "$REPAIR_LOG_FILE"
+  chmod 0644 "$REPAIR_LOG_FILE" || true
+  ln -sfn "$(basename "$REPAIR_LOG_FILE")" "$REPAIR_LATEST_LOG" 2>/dev/null ||
+    cp "$REPAIR_LOG_FILE" "$REPAIR_LATEST_LOG"
+  exec > >(tee -a "$REPAIR_LOG_FILE") 2>&1
+  log "Full repair log: ${REPAIR_LOG_FILE}"
+  log "Latest repair log: ${REPAIR_LATEST_LOG}"
 }
 
 read_env_value() {
@@ -370,6 +387,94 @@ certificate_subject() {
     openssl x509 -noout -subject 2>/dev/null || true
 }
 
+run_status_command() {
+  local title="$1"
+  shift
+
+  printf '\n[jrp-traefik-repair] === %s ===\n' "$title"
+  printf '[jrp-traefik-repair] $'
+  printf ' %q' "$@"
+  printf '\n'
+  timeout 25 "$@" || true
+}
+
+log_domain_status() {
+  local domain="$1"
+  local resolved issuer subject
+
+  resolved="$(domain_ips "$domain" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+  issuer="$(certificate_issuer "$domain")"
+  subject="$(certificate_subject "$domain")"
+  log "Domain ${domain}: dns=${resolved:-none} subject=${subject:-none} issuer=${issuer:-none}"
+  run_status_command "HTTPS strict probe ${domain}" curl -I --max-time 12 "https://${domain}/"
+  run_status_command "HTTPS insecure probe ${domain}" curl -k -I --max-time 12 "https://${domain}/"
+}
+
+write_status_report() {
+  local phase="$1"
+  local domain
+
+  printf '\n[jrp-traefik-repair] ######## STATUS REPORT: %s ########\n' "$phase"
+  log "Timestamp UTC: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  log "Install dir: ${INSTALL_DIR}"
+  log "Repair run id: ${REPAIR_RUN_ID}"
+  log "Repair log file: ${REPAIR_LOG_FILE}"
+  log "Base domain: ${BASE_DOMAIN:-none}"
+  log "API_DOMAIN=${API_DOMAIN:-none}"
+  log "STUDIO_DOMAIN=${STUDIO_DOMAIN:-none}"
+  log "AUTH_DOMAIN=${AUTH_DOMAIN:-none}"
+  log "SYNC_API_DOMAIN=${SYNC_API_DOMAIN:-none}"
+  log "VERIFY_DNS=${VERIFY_DNS} VERIFY_HTTPS=${VERIFY_HTTPS} ENABLE_UFW=${ENABLE_UFW} UPDATE_REPO=${UPDATE_REPO} REPAIR_STATUS_ONLY=${REPAIR_STATUS_ONLY}"
+  log "Server public IPs: $(server_public_ips | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+
+  run_status_command "Docker version" docker version
+  run_status_command "Docker Compose version" docker compose version
+  run_status_command "Listening TCP ports" sh -c "ss -ltnp 2>/dev/null | grep -E ':(80|443|8000|8443|8080|9091|5432)\\b' || true"
+
+  if [ -d "$INSTALL_DIR/docker" ]; then
+    (
+      cd "$INSTALL_DIR/docker"
+      run_status_command "Docker Compose ps" docker compose "${COMPOSE_FILES[@]}" ps -a
+      run_status_command "Rendered Traefik labels" sh -c "docker compose ${COMPOSE_FILES[*]} config 2>/dev/null | grep -E 'traefik\\.http\\.(routers|services|middlewares)' || true"
+    )
+  fi
+
+  run_status_command "All containers" docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Ports}}'
+  for domain in "$API_DOMAIN" "$STUDIO_DOMAIN" "$AUTH_DOMAIN" "$SYNC_API_DOMAIN"; do
+    [ -n "$domain" ] && log_domain_status "$domain"
+  done
+
+  for container in traefik authelia supabase-kong supabase-studio sync-api supabase-analytics supabase-db; do
+    run_status_command "Inspect ${container}" docker inspect -f 'name={{.Name}} status={{.State.Status}} running={{.State.Running}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} restart_count={{.RestartCount}} image={{.Config.Image}}' "$container"
+  done
+
+  for container in traefik authelia supabase-kong supabase-studio sync-api supabase-analytics; do
+    run_status_command "Recent logs ${container}" docker logs --tail 120 "$container"
+  done
+  printf '[jrp-traefik-repair] ######## END STATUS REPORT: %s ########\n\n' "$phase"
+}
+
+publish_log_locations() {
+  log "Full repair log: ${REPAIR_LOG_FILE}"
+  if [ -n "${SYNC_API_DOMAIN:-}" ]; then
+    log "Repair log URL when Sync API is reachable: https://${SYNC_API_DOMAIN}/v1/repair-logs/latest"
+    log "This run log URL when Sync API is reachable: https://${SYNC_API_DOMAIN}/v1/repair-logs/$(basename "$REPAIR_LOG_FILE")"
+  fi
+}
+
+on_exit() {
+  local status="$1"
+  if [ "$status" -ne 0 ] && [ "$FINAL_STATUS_CAPTURED" != "true" ]; then
+    FINAL_STATUS_CAPTURED=true
+    log "Repair failed with exit code ${status}; collecting final status"
+    write_status_report "failure"
+    log "Full repair log: ${REPAIR_LOG_FILE}"
+    if [ -n "${SYNC_API_DOMAIN:-}" ]; then
+      log "Repair log URL when Sync API is reachable: https://${SYNC_API_DOMAIN}/v1/repair-logs/latest"
+    fi
+  fi
+}
+
 wait_for_letsencrypt() {
   if [ "$VERIFY_HTTPS" != "true" ]; then
     log "Skipping HTTPS certificate verification because VERIFY_HTTPS=${VERIFY_HTTPS}"
@@ -403,15 +508,24 @@ wait_for_letsencrypt() {
 
 main() {
   require_root
+  init_logging
+  trap 'on_exit $?' EXIT
   update_repo
   reexec_if_repo_updated "$@"
   require_stack
   configure_domains
+  publish_log_locations
   verify_compose_domains
+  write_status_report "preflight"
+  if [ "$REPAIR_STATUS_ONLY" = "true" ]; then
+    log "Status-only mode completed; no repair actions were attempted"
+    return
+  fi
   verify_dns_points_here
   configure_firewall
   recreate_traefik_routes
   wait_for_letsencrypt
+  write_status_report "success"
   log "Traefik SSL repair completed"
 }
 
