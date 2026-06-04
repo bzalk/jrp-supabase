@@ -556,7 +556,7 @@ repair_db_roles() {
 
   for attempt in $(seq 1 60); do
     log "Ensuring Supabase internal database roles use the generated Postgres password (attempt ${attempt})"
-    if docker exec -e PGPASSWORD="$password" supabase-db \
+    if docker exec -i -e PGPASSWORD="$password" supabase-db \
       psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U postgres -d postgres -v pgpass="$password" <<'SQL'
 SELECT set_config('jrp.pgpass', :'pgpass', false);
 
