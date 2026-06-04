@@ -10,6 +10,7 @@ CONFIRM_RESET="${CONFIRM_RESET:-}"
 CONFIRM="${CONFIRM:-}"
 RESET_LOG_FILE="${RESET_LOG_FILE:-/root/jrp-reset-vps-$(date -u +%Y%m%dT%H%M%SZ).log}"
 PRUNE_DOCKER_SYSTEM="${PRUNE_DOCKER_SYSTEM:-false}"
+RESET_DRY_RUN="${RESET_DRY_RUN:-false}"
 
 KNOWN_CONTAINERS=(
   traefik
@@ -80,6 +81,10 @@ parse_args() {
         PRUNE_DOCKER_SYSTEM=true
         shift
         ;;
+      --dry-run)
+        RESET_DRY_RUN=true
+        shift
+        ;;
       --)
         shift
         break
@@ -134,12 +139,22 @@ EOF
 }
 
 install_minimum_packages() {
+  if [ "$RESET_DRY_RUN" = "true" ]; then
+    log "DRY RUN: would install minimum packages"
+    return
+  fi
+
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
   apt-get install -y curl ca-certificates
 }
 
 install_docker_if_missing() {
+  if [ "$RESET_DRY_RUN" = "true" ]; then
+    log "DRY RUN: would ensure Docker is installed and running"
+    return
+  fi
+
   if command -v docker >/dev/null 2>&1; then
     systemctl start docker || true
     return
@@ -150,6 +165,11 @@ install_docker_if_missing() {
 }
 
 compose_down_if_possible() {
+  if [ "$RESET_DRY_RUN" = "true" ]; then
+    log "DRY RUN: would stop Docker Compose stack under ${INSTALL_DIR}/docker"
+    return
+  fi
+
   if [ ! -d "$INSTALL_DIR/docker" ] || ! command -v docker >/dev/null 2>&1; then
     return
   fi
@@ -167,6 +187,11 @@ compose_down_if_possible() {
 
 remove_known_containers() {
   local id name prefix suffix candidate
+
+  if [ "$RESET_DRY_RUN" = "true" ]; then
+    log "DRY RUN: would remove known stack containers and stale Compose temp containers"
+    return
+  fi
 
   if ! command -v docker >/dev/null 2>&1; then
     return
@@ -199,6 +224,11 @@ wait_for_known_containers_gone() {
   local deadline candidate waiting status
   deadline=$((SECONDS + 180))
 
+  if [ "$RESET_DRY_RUN" = "true" ]; then
+    log "DRY RUN: would wait for known stack container names to be released"
+    return
+  fi
+
   while [ "$SECONDS" -lt "$deadline" ]; do
     waiting=false
     for candidate in "${KNOWN_CONTAINERS[@]}"; do
@@ -220,6 +250,11 @@ wait_for_known_containers_gone() {
 
 remove_project_docker_resources() {
   local volume network image
+
+  if [ "$RESET_DRY_RUN" = "true" ]; then
+    log "DRY RUN: would remove project Docker volumes, networks, and local images"
+    return
+  fi
 
   if ! command -v docker >/dev/null 2>&1; then
     return
@@ -249,6 +284,11 @@ remove_project_docker_resources() {
 }
 
 remove_local_files() {
+  if [ "$RESET_DRY_RUN" = "true" ]; then
+    log "DRY RUN: would remove install directory ${INSTALL_DIR}"
+    return
+  fi
+
   log "Removing install directory ${INSTALL_DIR}"
   cd /
   rm -rf "$INSTALL_DIR"
@@ -261,6 +301,11 @@ run_fresh_install() {
     return
   fi
   [ -n "$BASE_DOMAIN" ] || fail "BASE_DOMAIN is required to run the fresh install"
+
+  if [ "$RESET_DRY_RUN" = "true" ]; then
+    log "DRY RUN: would download and run installer for ${BASE_DOMAIN} from ${REPO_URL}#${REPO_BRANCH}"
+    return
+  fi
 
   export BASE_DOMAIN
   export JRP_REPO_URL="$REPO_URL"
@@ -283,6 +328,7 @@ main() {
   confirm_reset
   log "Reset log: ${RESET_LOG_FILE}"
   log "GitHub is used as a read-only source for downloading/cloning scripts."
+  log "RESET_DRY_RUN=${RESET_DRY_RUN}"
   install_minimum_packages
   install_docker_if_missing
   compose_down_if_possible

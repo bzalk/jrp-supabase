@@ -84,6 +84,13 @@ curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/res
   | bash -s -- example.com --confirm CONFIRM
 ```
 
+Smoke-test the reset flow without removing anything:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh \
+  | bash -s -- example.com --confirm CONFIRM --dry-run
+```
+
 GitHub is used only as a read-only source for downloading scripts and cloning
 the public repo into the VPS. The install/reset scripts do not push to GitHub.
 The reset and install scripts force their working directory to `/` before

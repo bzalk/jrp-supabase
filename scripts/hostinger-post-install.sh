@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+cd /
+
 exec > >(tee -a /post_install.log) 2>&1
 
 # Required. Override in the Hostinger post-install script before running.
