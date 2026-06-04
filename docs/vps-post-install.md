@@ -81,7 +81,9 @@ Repo updates are single-branch only. The installer and repair script fetch only
 `refs/heads/JRP_REPO_BRANCH` into `FETCH_HEAD` using an empty Git refmap, then
 fast-forward from there without using `git pull` or rewriting `origin/main`. A
 local lock prevents overlapping install/repair runs from updating the same
-checkout at the same time.
+checkout at the same time. If the checkout updates while a public bootstrap
+script is running, the script re-runs itself from the updated local checkout
+before continuing.
 
 ## Repair Traefik SSL
 
@@ -102,9 +104,11 @@ which can be left behind by an interrupted `up --force-recreate` and block the
 next repair run. The repair script also removes exact route-container name
 conflicts such as `authelia` after Compose cleanup, then recreates only the
 route containers with `--no-deps`, so a separate unhealthy Supabase service such
-as analytics cannot block TLS repair. A Docker Compose stack lock prevents
-overlapping install and repair runs from recreating the same route containers at
-the same time. It does not remove database containers or Docker volumes.
+as analytics cannot block TLS repair. It waits until Docker fully releases those
+route container names before creating replacements. A Docker Compose stack lock
+prevents overlapping install and repair runs from recreating the same route
+containers at the same time. It does not remove database containers or Docker
+volumes.
 
 Optional repair overrides:
 

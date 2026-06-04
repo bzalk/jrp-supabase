@@ -16,6 +16,7 @@ ENABLE_UFW="${ENABLE_UFW:-true}"
 COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.traefik.yml)
 ROUTED_SERVICES=(traefik studio authelia kong sync-api)
 ROUTED_CONTAINER_NAMES=(traefik supabase-studio authelia supabase-kong sync-api)
+REPO_UPDATED=false
 
 if [ -z "$BASE_DOMAIN" ] && [ -n "${1:-}" ]; then
   BASE_DOMAIN="$1"
@@ -119,6 +120,8 @@ acquire_stack_lock() {
 }
 
 update_repo() {
+  local before after
+
   if [ "$UPDATE_REPO" != "true" ]; then
     log "Skipping repo update because UPDATE_REPO=${UPDATE_REPO}"
     return
@@ -130,6 +133,7 @@ update_repo() {
   command -v git >/dev/null 2>&1 || fail "git is required when UPDATE_REPO=true"
   validate_repo_branch
   acquire_repo_lock
+  before="$(git -C "$INSTALL_DIR" rev-parse HEAD 2>/dev/null || true)"
   git -C "$INSTALL_DIR" fetch --refmap= origin "refs/heads/${REPO_BRANCH}"
   if git -C "$INSTALL_DIR" rev-parse --verify --quiet "$REPO_BRANCH" >/dev/null; then
     git -C "$INSTALL_DIR" checkout "$REPO_BRANCH"
@@ -137,6 +141,28 @@ update_repo() {
     git -C "$INSTALL_DIR" checkout -b "$REPO_BRANCH" FETCH_HEAD
   fi
   git -C "$INSTALL_DIR" merge --ff-only FETCH_HEAD
+  after="$(git -C "$INSTALL_DIR" rev-parse HEAD 2>/dev/null || true)"
+  if [ -n "$before" ] && [ -n "$after" ] && [ "$before" != "$after" ]; then
+    REPO_UPDATED=true
+  fi
+}
+
+reexec_if_repo_updated() {
+  local local_script="$INSTALL_DIR/scripts/repair-traefik-ssl.sh"
+
+  if [ "$REPO_UPDATED" != "true" ]; then
+    return
+  fi
+  if [ "${JRP_REPAIR_REEXECED:-false}" = "true" ]; then
+    return
+  fi
+  if [ ! -f "$local_script" ]; then
+    return
+  fi
+
+  log "Repo updated; re-running latest local repair script"
+  export JRP_REPAIR_REEXECED=true
+  exec bash "$local_script" "$@"
 }
 
 configure_domains() {
@@ -285,6 +311,31 @@ remove_conflicting_route_containers() {
   fi
 }
 
+wait_for_route_container_names_gone() {
+  local deadline candidate waiting status
+  deadline=$((SECONDS + 120))
+
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    waiting=false
+    for candidate in "${ROUTED_CONTAINER_NAMES[@]}"; do
+      if docker container inspect "$candidate" >/dev/null 2>&1; then
+        waiting=true
+        status="$(docker inspect -f '{{.State.Status}}' "$candidate" 2>/dev/null || printf 'removing')"
+        log "Waiting for route container name to be released: ${candidate} (${status})"
+      fi
+    done
+
+    if [ "$waiting" = "false" ]; then
+      return
+    fi
+    sleep 2
+  done
+
+  docker ps -a --filter 'name=^/(traefik|supabase-studio|authelia|supabase-kong|sync-api)$' \
+    --format 'table {{.Names}}\t{{.Status}}\t{{.ID}}' || true
+  fail "Timed out waiting for route container names to be released"
+}
+
 recreate_traefik_routes() {
   cd "$INSTALL_DIR/docker"
   acquire_stack_lock
@@ -292,6 +343,7 @@ recreate_traefik_routes() {
   docker compose "${COMPOSE_FILES[@]}" stop "${ROUTED_SERVICES[@]}" || true
   docker compose "${COMPOSE_FILES[@]}" rm -sf "${ROUTED_SERVICES[@]}" || true
   remove_conflicting_route_containers
+  wait_for_route_container_names_gone
   cleanup_stale_compose_temp_containers
   docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate --no-deps "${ROUTED_SERVICES[@]}"
 }
@@ -342,6 +394,7 @@ wait_for_letsencrypt() {
 main() {
   require_root
   update_repo
+  reexec_if_repo_updated "$@"
   require_stack
   configure_domains
   verify_compose_domains

@@ -25,6 +25,7 @@ COMPOSE_TEMP_CONTAINER_NAMES=(
   supabase-kong
   sync-api
 )
+REPO_UPDATED=false
 
 if [ -z "$BASE_DOMAIN" ] && [ -n "${1:-}" ]; then
   BASE_DOMAIN="$1"
@@ -149,10 +150,13 @@ acquire_stack_lock() {
 }
 
 checkout_repo() {
+  local before after
+
   mkdir -p "$INSTALL_DIR"
   validate_repo_branch
   if [ -d "$INSTALL_DIR/.git" ]; then
     acquire_repo_lock
+    before="$(git -C "$INSTALL_DIR" rev-parse HEAD 2>/dev/null || true)"
     git -C "$INSTALL_DIR" fetch --refmap= origin "refs/heads/${REPO_BRANCH}"
     if git -C "$INSTALL_DIR" rev-parse --verify --quiet "$REPO_BRANCH" >/dev/null; then
       git -C "$INSTALL_DIR" checkout "$REPO_BRANCH"
@@ -160,9 +164,31 @@ checkout_repo() {
       git -C "$INSTALL_DIR" checkout -b "$REPO_BRANCH" FETCH_HEAD
     fi
     git -C "$INSTALL_DIR" merge --ff-only FETCH_HEAD
+    after="$(git -C "$INSTALL_DIR" rev-parse HEAD 2>/dev/null || true)"
+    if [ -n "$before" ] && [ -n "$after" ] && [ "$before" != "$after" ]; then
+      REPO_UPDATED=true
+    fi
   else
     git clone --branch "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
   fi
+}
+
+reexec_if_repo_updated() {
+  local local_script="$INSTALL_DIR/scripts/install-vps.sh"
+
+  if [ "$REPO_UPDATED" != "true" ]; then
+    return
+  fi
+  if [ "${JRP_INSTALL_REEXECED:-false}" = "true" ]; then
+    return
+  fi
+  if [ ! -f "$local_script" ]; then
+    return
+  fi
+
+  log "Repo updated; re-running latest local installer script"
+  export JRP_INSTALL_REEXECED=true
+  exec bash "$local_script" "$@"
 }
 
 configure_env() {
@@ -291,11 +317,54 @@ cleanup_stale_compose_temp_containers() {
   fi
 }
 
+remove_conflicting_route_containers() {
+  local candidate removed=false
+
+  for candidate in "${COMPOSE_TEMP_CONTAINER_NAMES[@]}"; do
+    if docker container inspect "$candidate" >/dev/null 2>&1; then
+      log "Removing route container before full stack recreate: ${candidate}"
+      docker rm -f "$candidate" >/dev/null || true
+      removed=true
+    fi
+  done
+
+  if [ "$removed" = "false" ]; then
+    log "No exact route container name conflicts found"
+  fi
+}
+
+wait_for_route_container_names_gone() {
+  local deadline candidate waiting status
+  deadline=$((SECONDS + 120))
+
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    waiting=false
+    for candidate in "${COMPOSE_TEMP_CONTAINER_NAMES[@]}"; do
+      if docker container inspect "$candidate" >/dev/null 2>&1; then
+        waiting=true
+        status="$(docker inspect -f '{{.State.Status}}' "$candidate" 2>/dev/null || printf 'removing')"
+        log "Waiting for route container name to be released: ${candidate} (${status})"
+      fi
+    done
+
+    if [ "$waiting" = "false" ]; then
+      return
+    fi
+    sleep 2
+  done
+
+  docker ps -a --filter 'name=^/(traefik|supabase-studio|authelia|supabase-kong|sync-api)$' \
+    --format 'table {{.Names}}\t{{.Status}}\t{{.ID}}' || true
+  fail "Timed out waiting for route container names to be released"
+}
+
 start_stack() {
   cd "$INSTALL_DIR/docker"
   acquire_stack_lock
   docker compose "${COMPOSE_FILES[@]}" pull --ignore-pull-failures || true
   cleanup_stale_compose_temp_containers
+  remove_conflicting_route_containers
+  wait_for_route_container_names_gone
   docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate
 }
 
@@ -376,6 +445,7 @@ main() {
   install_docker
   log "Checking out ${REPO_URL}#${REPO_BRANCH} into ${INSTALL_DIR}"
   checkout_repo
+  reexec_if_repo_updated "$@"
   log "Configuring stack for ${BASE_DOMAIN}"
   configure_env
   verify_compose_domains
