@@ -156,7 +156,7 @@ install_minimum_packages() {
 
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  apt-get install -y curl ca-certificates
+  apt-get install -y git curl ca-certificates
 }
 
 install_docker_if_missing() {
@@ -322,14 +322,11 @@ run_fresh_install() {
   export JRP_REPO_BRANCH="$REPO_BRANCH"
   export JRP_INSTALL_DIR="$INSTALL_DIR"
 
-  log "Downloading installer from read-only repo source ${REPO_URL}#${REPO_BRANCH}"
+  log "Cloning installer from read-only repo source ${REPO_URL}#${REPO_BRANCH}"
   cd /
-  local cache_bust
-  cache_bust="$(date -u +%Y%m%dT%H%M%SZ)"
-  curl -fsSL "https://raw.githubusercontent.com/bzalk/jrp-supabase/${REPO_BRANCH}/scripts/install-vps.sh?cb=${cache_bust}" \
-    -o /tmp/jrp-install-vps.sh
-  chmod +x /tmp/jrp-install-vps.sh
-  /tmp/jrp-install-vps.sh "$BASE_DOMAIN"
+  rm -rf /tmp/jrp-reset-installer
+  git clone --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" /tmp/jrp-reset-installer
+  /tmp/jrp-reset-installer/scripts/install-vps.sh "$BASE_DOMAIN"
 }
 
 main() {
