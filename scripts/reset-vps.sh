@@ -324,7 +324,9 @@ run_fresh_install() {
 
   log "Downloading installer from read-only repo source ${REPO_URL}#${REPO_BRANCH}"
   cd /
-  curl -fsSL "https://raw.githubusercontent.com/bzalk/jrp-supabase/${REPO_BRANCH}/scripts/install-vps.sh" \
+  local cache_bust
+  cache_bust="$(date -u +%Y%m%dT%H%M%SZ)"
+  curl -fsSL "https://raw.githubusercontent.com/bzalk/jrp-supabase/${REPO_BRANCH}/scripts/install-vps.sh?cb=${cache_bust}" \
     -o /tmp/jrp-install-vps.sh
   chmod +x /tmp/jrp-install-vps.sh
   /tmp/jrp-install-vps.sh "$BASE_DOMAIN"
