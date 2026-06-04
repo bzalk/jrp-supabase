@@ -522,13 +522,14 @@ wait_for_db_healthy() {
 repair_db_roles() {
   cd "$INSTALL_DIR/docker"
 
-  local password
+  local attempt password
   password="$(read_env_value .env POSTGRES_PASSWORD)"
   [ -n "$password" ] || fail "POSTGRES_PASSWORD is empty; cannot repair database roles"
 
-  log "Ensuring Supabase internal database roles use the generated Postgres password"
-  docker exec -e PGPASSWORD="$password" supabase-db \
-    psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U postgres -d postgres -v pgpass="$password" <<'SQL'
+  for attempt in $(seq 1 60); do
+    log "Ensuring Supabase internal database roles use the generated Postgres password (attempt ${attempt})"
+    if docker exec -e PGPASSWORD="$password" supabase-db \
+      psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U postgres -d postgres -v pgpass="$password" <<'SQL'
 SELECT format(
   'CREATE ROLE supabase_admin WITH LOGIN SUPERUSER CREATEDB CREATEROLE REPLICATION BYPASSRLS PASSWORD %L',
   :'pgpass'
@@ -564,6 +565,14 @@ WHERE rolname IN (
 )
 ORDER BY rolname;
 SQL
+    then
+      return
+    fi
+    sleep 3
+  done
+
+  collect_startup_diagnostics
+  fail "Timed out repairing Supabase internal database roles"
 }
 
 start_stack() {
