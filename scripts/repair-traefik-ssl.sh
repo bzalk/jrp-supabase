@@ -66,6 +66,14 @@ require_stack() {
   command -v curl >/dev/null 2>&1 || fail "curl is required"
 }
 
+validate_repo_branch() {
+  if [ -z "$REPO_BRANCH" ] || [[ "$REPO_BRANCH" =~ [[:space:]] ]]; then
+    fail "JRP_REPO_BRANCH must be a single branch name"
+  fi
+  git check-ref-format --branch "$REPO_BRANCH" >/dev/null ||
+    fail "invalid JRP_REPO_BRANCH: ${REPO_BRANCH}"
+}
+
 update_repo() {
   if [ "$UPDATE_REPO" != "true" ]; then
     log "Skipping repo update because UPDATE_REPO=${UPDATE_REPO}"
@@ -76,9 +84,14 @@ update_repo() {
     return
   fi
   command -v git >/dev/null 2>&1 || fail "git is required when UPDATE_REPO=true"
-  git -C "$INSTALL_DIR" fetch origin "$REPO_BRANCH"
-  git -C "$INSTALL_DIR" checkout "$REPO_BRANCH"
-  git -C "$INSTALL_DIR" pull --ff-only origin "$REPO_BRANCH"
+  validate_repo_branch
+  git -C "$INSTALL_DIR" fetch --prune origin "refs/heads/${REPO_BRANCH}:refs/remotes/origin/${REPO_BRANCH}"
+  if git -C "$INSTALL_DIR" rev-parse --verify --quiet "$REPO_BRANCH" >/dev/null; then
+    git -C "$INSTALL_DIR" checkout "$REPO_BRANCH"
+  else
+    git -C "$INSTALL_DIR" checkout -b "$REPO_BRANCH" "refs/remotes/origin/${REPO_BRANCH}"
+  fi
+  git -C "$INSTALL_DIR" merge --ff-only "refs/remotes/origin/${REPO_BRANCH}"
 }
 
 configure_domains() {

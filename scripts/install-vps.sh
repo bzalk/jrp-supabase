@@ -96,12 +96,25 @@ install_docker() {
   docker compose version >/dev/null
 }
 
+validate_repo_branch() {
+  if [ -z "$REPO_BRANCH" ] || [[ "$REPO_BRANCH" =~ [[:space:]] ]]; then
+    fail "JRP_REPO_BRANCH must be a single branch name"
+  fi
+  git check-ref-format --branch "$REPO_BRANCH" >/dev/null ||
+    fail "invalid JRP_REPO_BRANCH: ${REPO_BRANCH}"
+}
+
 checkout_repo() {
   mkdir -p "$INSTALL_DIR"
+  validate_repo_branch
   if [ -d "$INSTALL_DIR/.git" ]; then
-    git -C "$INSTALL_DIR" fetch origin "$REPO_BRANCH"
-    git -C "$INSTALL_DIR" checkout "$REPO_BRANCH"
-    git -C "$INSTALL_DIR" pull --ff-only origin "$REPO_BRANCH"
+    git -C "$INSTALL_DIR" fetch --prune origin "refs/heads/${REPO_BRANCH}:refs/remotes/origin/${REPO_BRANCH}"
+    if git -C "$INSTALL_DIR" rev-parse --verify --quiet "$REPO_BRANCH" >/dev/null; then
+      git -C "$INSTALL_DIR" checkout "$REPO_BRANCH"
+    else
+      git -C "$INSTALL_DIR" checkout -b "$REPO_BRANCH" "refs/remotes/origin/${REPO_BRANCH}"
+    fi
+    git -C "$INSTALL_DIR" merge --ff-only "refs/remotes/origin/${REPO_BRANCH}"
   else
     git clone --branch "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
   fi
