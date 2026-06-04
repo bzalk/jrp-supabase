@@ -511,7 +511,7 @@ repair_db_roles() {
 
   log "Ensuring Supabase internal database roles use the generated Postgres password"
   docker exec -e PGPASSWORD="$password" supabase-db \
-    psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -U postgres -d postgres -v pgpass="$password" <<'SQL'
+    psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U postgres -d postgres -v pgpass="$password" <<'SQL'
 SELECT format(
   'CREATE ROLE supabase_admin WITH LOGIN SUPERUSER CREATEDB CREATEROLE REPLICATION BYPASSRLS PASSWORD %L',
   :'pgpass'
