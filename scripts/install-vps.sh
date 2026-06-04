@@ -616,6 +616,16 @@ $$;
 GRANT anon, authenticated, service_role TO authenticator;
 SQL
     then
+      if ! docker exec -e PGPASSWORD="$password" supabase-db \
+        psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U postgres -d postgres -At \
+          -c "SELECT 1 FROM pg_database WHERE datname = '_supabase'" | grep -qx '1'; then
+        docker exec -e PGPASSWORD="$password" supabase-db \
+          psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U postgres -d postgres \
+            -c 'CREATE DATABASE _supabase WITH OWNER supabase_admin'
+      fi
+      docker exec -e PGPASSWORD="$password" supabase-db \
+        psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U postgres -d _supabase \
+          -c 'CREATE SCHEMA IF NOT EXISTS _supavisor AUTHORIZATION supabase_admin; ALTER SCHEMA _supavisor OWNER TO supabase_admin'
       for role in supabase_admin authenticator supabase_auth_admin supabase_storage_admin; do
         docker exec -e PGPASSWORD="$password" supabase-db \
           psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U "$role" -d postgres -c 'select 1' >/dev/null
