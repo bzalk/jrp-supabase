@@ -245,6 +245,127 @@ configure_env() {
   chmod 600 .env
 }
 
+configure_authelia() {
+  cd "$INSTALL_DIR/docker"
+
+  local authelia_dir admin_file config_file users_file notification_file
+  local admin_user admin_email admin_password admin_hash session_cookie_name
+  local session_secret storage_key
+
+  authelia_dir="$INSTALL_DIR/docker/volumes/authelia"
+  admin_file="$INSTALL_DIR/docker/authelia-admin.generated.txt"
+  config_file="$authelia_dir/configuration.yml"
+  users_file="$authelia_dir/users_database.yml"
+  notification_file="$authelia_dir/notification.txt"
+
+  mkdir -p "$authelia_dir"
+
+  if [ -f "$config_file" ] && [ -f "$users_file" ] && [ "$FORCE_REGENERATE_SECRETS" != "true" ]; then
+    log "Preserving existing Authelia configuration in ${authelia_dir}"
+    return
+  fi
+
+  admin_user="${AUTHELIA_ADMIN_USER:-admin}"
+  admin_email="${AUTHELIA_ADMIN_EMAIL:-admin@${BASE_DOMAIN}}"
+  admin_password="${AUTHELIA_ADMIN_PASSWORD:-$(openssl rand -base64 24 | tr -d '\n')}"
+  admin_hash="$(openssl passwd -6 "$admin_password")"
+  session_cookie_name="authelia_session_$(printf '%s' "$BASE_DOMAIN" | tr '.-' '__')"
+  session_secret="$(read_env_value .env AUTHELIA_SESSION_SECRET)"
+  storage_key="$(read_env_value .env AUTHELIA_STORAGE_ENCRYPTION_KEY)"
+
+  cat > "$config_file" <<EOF
+theme: auto
+default_2fa_method: totp
+
+server:
+  endpoints:
+    authz:
+      forward-auth:
+        implementation: ForwardAuth
+
+log:
+  level: info
+
+totp:
+  issuer: ${BASE_DOMAIN}
+
+authentication_backend:
+  password_reset:
+    disable: true
+  password_change:
+    disable: true
+  file:
+    path: /config/users_database.yml
+    watch: true
+    search:
+      email: true
+      case_insensitive: true
+    password:
+      algorithm: sha2crypt
+      sha2crypt:
+        variant: sha512
+        iterations: 50000
+
+access_control:
+  default_policy: deny
+  rules:
+    - domain: ${AUTH_DOMAIN}
+      policy: bypass
+    - domain: ${STUDIO_DOMAIN}
+      subject:
+        - group:studio-admins
+      policy: one_factor
+
+session:
+  secret: ${session_secret}
+  name: ${session_cookie_name}
+  same_site: lax
+  expiration: 12h
+  inactivity: 45m
+  remember_me: 14d
+  cookies:
+    - domain: ${BASE_DOMAIN}
+      authelia_url: https://${AUTH_DOMAIN}
+      default_redirection_url: https://${STUDIO_DOMAIN}
+
+regulation:
+  max_retries: 5
+  find_time: 2m
+  ban_time: 15m
+
+storage:
+  encryption_key: ${storage_key}
+  local:
+    path: /config/db.sqlite3
+
+notifier:
+  filesystem:
+    filename: /config/notification.txt
+EOF
+
+  cat > "$users_file" <<EOF
+users:
+  ${admin_user}:
+    displayname: "JRP Supabase Admin"
+    password: "${admin_hash}"
+    email: ${admin_email}
+    groups:
+      - studio-admins
+EOF
+
+  : > "$notification_file"
+  chmod 600 "$config_file" "$users_file"
+
+  cat > "$admin_file" <<EOF
+Auth URL: https://${AUTH_DOMAIN}
+Username: ${admin_user}
+Password: ${admin_password}
+Email: ${admin_email}
+EOF
+  chmod 600 "$admin_file"
+  log "Generated Authelia configuration and admin credentials at ${admin_file}"
+}
+
 compose_config() {
   cd "$INSTALL_DIR/docker"
   docker compose "${COMPOSE_FILES[@]}" config
@@ -375,9 +496,10 @@ collect_startup_diagnostics() {
   docker compose "${COMPOSE_FILES[@]}" ps -a || true
   docker inspect -f 'name={{.Name}} status={{.State.Status}} running={{.State.Running}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} exit_code={{.State.ExitCode}} error={{.State.Error}} restart_count={{.RestartCount}}' supabase-db || true
   docker inspect -f '{{range .State.Health.Log}}{{println .Start .End .ExitCode .Output}}{{end}}' supabase-db || true
-  docker logs --tail 300 supabase-db || true
-  docker logs --tail 160 supabase-analytics || true
-  docker logs --tail 160 sync-api || true
+  for container in supabase-db supabase-analytics supabase-auth supabase-rest supabase-storage supabase-pooler authelia supabase-studio supabase-kong sync-api traefik; do
+    log "Logs for ${container}"
+    docker logs --tail 180 "$container" || true
+  done
 }
 
 start_stack() {
@@ -474,6 +596,7 @@ main() {
   reexec_if_repo_updated "$@"
   log "Configuring stack for ${BASE_DOMAIN}"
   configure_env
+  configure_authelia
   verify_compose_domains
   verify_dns_points_here
   configure_firewall
