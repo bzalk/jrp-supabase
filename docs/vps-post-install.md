@@ -77,10 +77,11 @@ Let's Encrypt certificates. If DNS is intentionally not ready yet, set
 `VERIFY_DNS=false` and `VERIFY_HTTPS=false`, then rerun the installer after DNS
 is corrected.
 
-Repo updates are single-branch only. The installer and repair script fetch
-`JRP_REPO_BRANCH` explicitly and fast-forward to `origin/JRP_REPO_BRANCH`
-without using `git pull`, so server-side Git pull settings cannot make the
-script attempt to fast-forward multiple branches.
+Repo updates are single-branch only. The installer and repair script fetch only
+`refs/heads/JRP_REPO_BRANCH` into `FETCH_HEAD` using an empty Git refmap, then
+fast-forward from there without using `git pull` or rewriting `origin/main`. A
+local lock prevents overlapping install/repair runs from updating the same
+checkout at the same time.
 
 ## Repair Traefik SSL
 

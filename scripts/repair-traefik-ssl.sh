@@ -74,6 +74,28 @@ validate_repo_branch() {
     fail "invalid JRP_REPO_BRANCH: ${REPO_BRANCH}"
 }
 
+acquire_repo_lock() {
+  local lock_file="$INSTALL_DIR/.jrp-repo-update.lock"
+  local lock_dir="$INSTALL_DIR/.jrp-repo-update.lockdir"
+  local deadline
+
+  if command -v flock >/dev/null 2>&1; then
+    exec 9>"$lock_file"
+    log "Waiting for repo update lock"
+    flock -w 120 9 || fail "timed out waiting for repo update lock"
+    return
+  fi
+
+  deadline=$((SECONDS + 120))
+  until mkdir "$lock_dir" 2>/dev/null; do
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      fail "timed out waiting for repo update lock"
+    fi
+    sleep 2
+  done
+  trap 'rm -rf "$INSTALL_DIR/.jrp-repo-update.lockdir"' EXIT
+}
+
 update_repo() {
   if [ "$UPDATE_REPO" != "true" ]; then
     log "Skipping repo update because UPDATE_REPO=${UPDATE_REPO}"
@@ -85,13 +107,14 @@ update_repo() {
   fi
   command -v git >/dev/null 2>&1 || fail "git is required when UPDATE_REPO=true"
   validate_repo_branch
-  git -C "$INSTALL_DIR" fetch --prune origin "refs/heads/${REPO_BRANCH}:refs/remotes/origin/${REPO_BRANCH}"
+  acquire_repo_lock
+  git -C "$INSTALL_DIR" fetch --refmap= origin "refs/heads/${REPO_BRANCH}"
   if git -C "$INSTALL_DIR" rev-parse --verify --quiet "$REPO_BRANCH" >/dev/null; then
     git -C "$INSTALL_DIR" checkout "$REPO_BRANCH"
   else
-    git -C "$INSTALL_DIR" checkout -b "$REPO_BRANCH" "refs/remotes/origin/${REPO_BRANCH}"
+    git -C "$INSTALL_DIR" checkout -b "$REPO_BRANCH" FETCH_HEAD
   fi
-  git -C "$INSTALL_DIR" merge --ff-only "refs/remotes/origin/${REPO_BRANCH}"
+  git -C "$INSTALL_DIR" merge --ff-only FETCH_HEAD
 }
 
 configure_domains() {
