@@ -92,9 +92,37 @@ install_docker() {
   if ! command -v docker >/dev/null 2>&1; then
     curl -fsSL https://get.docker.com | sh
   fi
+  ensure_supported_docker_engine
   systemctl enable docker
   systemctl start docker
   docker compose version >/dev/null
+}
+
+ensure_supported_docker_engine() {
+  local version major pinned_version
+
+  version="$(docker version --format '{{.Server.Version}}' 2>/dev/null || true)"
+  major="${version%%.*}"
+
+  if [ -n "$major" ] && [ "$major" -lt 29 ] 2>/dev/null; then
+    return
+  fi
+
+  log "Docker Engine ${version:-unknown} is not compatible with the bundled Traefik Docker provider; installing latest Docker 28.x"
+  apt-get update
+  pinned_version="$(apt-cache madison docker-ce | awk '{print $3}' | grep -E '^5:28\.' | head -n 1 || true)"
+  if [ -z "$pinned_version" ]; then
+    fail "Could not find a Docker 28.x package in the configured apt repositories"
+  fi
+
+  systemctl stop docker 2>/dev/null || true
+  apt-get install -y --allow-downgrades \
+    "docker-ce=${pinned_version}" \
+    "docker-ce-cli=${pinned_version}" \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
+  apt-mark hold docker-ce docker-ce-cli >/dev/null || true
 }
 
 validate_repo_branch() {
@@ -522,7 +550,7 @@ wait_for_db_healthy() {
 repair_db_roles() {
   cd "$INSTALL_DIR/docker"
 
-  local attempt password
+  local attempt password role
   password="$(read_env_value .env POSTGRES_PASSWORD)"
   [ -n "$password" ] || fail "POSTGRES_PASSWORD is empty; cannot repair database roles"
 
@@ -566,6 +594,11 @@ WHERE rolname IN (
 ORDER BY rolname;
 SQL
     then
+      for role in supabase_admin authenticator supabase_auth_admin supabase_storage_admin; do
+        docker exec -e PGPASSWORD="$password" supabase-db \
+          psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U "$role" -d postgres -c 'select 1' >/dev/null
+      done
+      log "Supabase internal database roles verified with generated password"
       return
     fi
     sleep 3
@@ -573,6 +606,12 @@ SQL
 
   collect_startup_diagnostics
   fail "Timed out repairing Supabase internal database roles"
+}
+
+restart_db_client_services() {
+  cd "$INSTALL_DIR/docker"
+  docker compose "${COMPOSE_FILES[@]}" restart \
+    auth rest storage realtime meta analytics supavisor studio kong sync-api >/dev/null || true
 }
 
 start_stack() {
@@ -588,10 +627,13 @@ start_stack() {
   fi
   wait_for_db_healthy
   repair_db_roles
-  if ! docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate; then
+  if ! docker compose "${COMPOSE_FILES[@]}" up -d --build --no-recreate; then
     collect_startup_diagnostics
     fail "Docker Compose stack failed to start"
   fi
+  wait_for_db_healthy
+  repair_db_roles
+  restart_db_client_services
 }
 
 certificate_issuer() {
