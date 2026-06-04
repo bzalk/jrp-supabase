@@ -126,6 +126,28 @@ acquire_repo_lock() {
   trap 'rm -rf "$INSTALL_DIR/.jrp-repo-update.lockdir"' EXIT
 }
 
+acquire_stack_lock() {
+  local lock_file="$INSTALL_DIR/.jrp-stack-update.lock"
+  local lock_dir="$INSTALL_DIR/.jrp-stack-update.lockdir"
+  local deadline
+
+  if command -v flock >/dev/null 2>&1; then
+    exec 8>"$lock_file"
+    log "Waiting for Docker Compose stack lock"
+    flock -w 180 8 || fail "timed out waiting for Docker Compose stack lock"
+    return
+  fi
+
+  deadline=$((SECONDS + 180))
+  until mkdir "$lock_dir" 2>/dev/null; do
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      fail "timed out waiting for Docker Compose stack lock"
+    fi
+    sleep 2
+  done
+  trap 'rm -rf "$INSTALL_DIR/.jrp-stack-update.lockdir"' EXIT
+}
+
 checkout_repo() {
   mkdir -p "$INSTALL_DIR"
   validate_repo_branch
@@ -271,6 +293,7 @@ cleanup_stale_compose_temp_containers() {
 
 start_stack() {
   cd "$INSTALL_DIR/docker"
+  acquire_stack_lock
   docker compose "${COMPOSE_FILES[@]}" pull --ignore-pull-failures || true
   cleanup_stale_compose_temp_containers
   docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate
