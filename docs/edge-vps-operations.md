@@ -1,0 +1,62 @@
+# Edge VPS Operations
+
+The Supabase Edge Function can reach the Hostinger API from Supabase's runtime,
+even when other execution environments are blocked by Hostinger/Cloudflare. Keep
+Hostinger API calls in the edge function or another trusted backend.
+
+## SSH Command Rules
+
+Do not place environment assignments before `curl` in a pipeline when the
+variables are meant for the script on the right side of the pipe.
+
+This is wrong:
+
+```bash
+CONFIRM_RESET=RESET BASE_DOMAIN=example.com curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh | bash
+```
+
+Those variables apply to `curl`, not reliably to `bash`.
+
+Use script arguments instead:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh | bash -s -- example.com --confirm CONFIRM
+```
+
+For SSL repair:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/repair-traefik-ssl.sh | bash -s -- example.com
+```
+
+## Avoid Edge Function 504s
+
+Reset and install can take longer than an HTTP request timeout. The edge
+function should start the SSH command in the background, return `202`, and poll
+logs/status separately.
+
+Recommended remote command:
+
+```bash
+nohup bash -lc 'curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh | bash -s -- example.com --confirm CONFIRM' >/root/jrp-reset-vps-ssh.log 2>&1 < /dev/null & echo "started pid=$! log=/root/jrp-reset-vps-ssh.log latest=/root/jrp-reset-vps-latest.log"
+```
+
+The reset script writes a timestamped log and updates:
+
+```text
+/root/jrp-reset-vps-latest.log
+```
+
+The repair script writes logs under:
+
+```text
+/opt/jrp-supabase/docker/repair-logs/
+```
+
+When Sync API is reachable, repair logs are exposed at:
+
+```text
+GET /v1/repair-logs
+GET /v1/repair-logs/latest
+GET /v1/repair-logs/{name}
+```

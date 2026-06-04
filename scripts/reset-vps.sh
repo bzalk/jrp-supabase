@@ -9,6 +9,7 @@ RUN_INSTALL="${RUN_INSTALL:-true}"
 CONFIRM_RESET="${CONFIRM_RESET:-}"
 CONFIRM="${CONFIRM:-}"
 RESET_LOG_FILE="${RESET_LOG_FILE:-/root/jrp-reset-vps-$(date -u +%Y%m%dT%H%M%SZ).log}"
+RESET_LATEST_LOG_FILE="${RESET_LATEST_LOG_FILE:-/root/jrp-reset-vps-latest.log}"
 PRUNE_DOCKER_SYSTEM="${PRUNE_DOCKER_SYSTEM:-false}"
 RESET_DRY_RUN="${RESET_DRY_RUN:-false}"
 
@@ -117,6 +118,15 @@ require_root() {
   if [ "$(id -u)" -ne 0 ]; then
     fail "run as root"
   fi
+}
+
+init_logging() {
+  mkdir -p "$(dirname "$RESET_LOG_FILE")" "$(dirname "$RESET_LATEST_LOG_FILE")"
+  touch "$RESET_LOG_FILE"
+  chmod 0644 "$RESET_LOG_FILE" || true
+  ln -sfn "$RESET_LOG_FILE" "$RESET_LATEST_LOG_FILE" 2>/dev/null ||
+    cp "$RESET_LOG_FILE" "$RESET_LATEST_LOG_FILE"
+  exec > >(tee -a "$RESET_LOG_FILE") 2>&1
 }
 
 confirm_reset() {
@@ -323,10 +333,11 @@ run_fresh_install() {
 main() {
   parse_args "$@"
   cd /
-  exec > >(tee -a "$RESET_LOG_FILE") 2>&1
+  init_logging
   require_root
   confirm_reset
   log "Reset log: ${RESET_LOG_FILE}"
+  log "Latest reset log: ${RESET_LATEST_LOG_FILE}"
   log "GitHub is used as a read-only source for downloading/cloning scripts."
   log "RESET_DRY_RUN=${RESET_DRY_RUN}"
   install_minimum_packages

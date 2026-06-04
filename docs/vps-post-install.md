@@ -36,6 +36,12 @@ GET /v1/repair-logs/latest
 GET /v1/repair-logs/{name}
 ```
 
+Edge-function SSH integration notes:
+
+```text
+docs/edge-vps-operations.md
+```
+
 Hostinger post-install example:
 
 ```bash
@@ -96,6 +102,9 @@ the public repo into the VPS. The install/reset scripts do not push to GitHub.
 The reset and install scripts force their working directory to `/` before
 deleting or recreating `/opt/jrp-supabase`, so a shell started inside the old
 checkout cannot break the reinstall with `getcwd` errors.
+The reset script also updates `/root/jrp-reset-vps-latest.log` so long-running
+SSH resets can be started in the background and polled without waiting for the
+HTTP request to stay open.
 
 DNS records should point at the VPS before install:
 
