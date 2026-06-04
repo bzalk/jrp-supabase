@@ -502,6 +502,23 @@ collect_startup_diagnostics() {
   done
 }
 
+wait_for_db_healthy() {
+  local deadline health
+  deadline=$((SECONDS + 180))
+
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' supabase-db 2>/dev/null || true)"
+    if [ "$health" = "healthy" ]; then
+      return
+    fi
+    log "Waiting for supabase-db to become healthy (${health:-not-created})"
+    sleep 3
+  done
+
+  collect_startup_diagnostics
+  fail "Timed out waiting for supabase-db to become healthy"
+}
+
 repair_db_roles() {
   cd "$INSTALL_DIR/docker"
 
@@ -560,6 +577,7 @@ start_stack() {
     collect_startup_diagnostics
     fail "Docker Compose database service failed to start"
   fi
+  wait_for_db_healthy
   repair_db_roles
   if ! docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate; then
     collect_startup_diagnostics
