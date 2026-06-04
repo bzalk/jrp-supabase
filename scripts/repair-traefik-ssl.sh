@@ -15,6 +15,7 @@ VERIFY_HTTPS="${VERIFY_HTTPS:-true}"
 ENABLE_UFW="${ENABLE_UFW:-true}"
 COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.traefik.yml)
 ROUTED_SERVICES=(traefik studio authelia kong sync-api)
+ROUTED_CONTAINER_NAMES=(traefik supabase-studio authelia supabase-kong sync-api)
 
 if [ -z "$BASE_DOMAIN" ] && [ -n "${1:-}" ]; then
   BASE_DOMAIN="$1"
@@ -185,8 +186,37 @@ configure_firewall() {
   fi
 }
 
+cleanup_stale_compose_temp_containers() {
+  local id name prefix suffix removed=false
+
+  while IFS=$'\t' read -r id name; do
+    [ -n "$id" ] || continue
+    prefix="${name%%_*}"
+    suffix="${name#*_}"
+    [ "$prefix" != "$name" ] || continue
+    [[ "$prefix" =~ ^[0-9a-f]{12,}$ ]] || continue
+
+    for candidate in "${ROUTED_CONTAINER_NAMES[@]}"; do
+      if [ "$suffix" = "$candidate" ]; then
+        log "Removing stale Docker Compose recreate container: ${name}"
+        docker rm -f "$id" >/dev/null || true
+        removed=true
+        break
+      fi
+    done
+  done < <(docker ps -a --format '{{.ID}}\t{{.Names}}')
+
+  if [ "$removed" = "false" ]; then
+    log "No stale Docker Compose recreate containers found"
+  fi
+}
+
 recreate_traefik_routes() {
   cd "$INSTALL_DIR/docker"
+  cleanup_stale_compose_temp_containers
+  docker compose "${COMPOSE_FILES[@]}" stop "${ROUTED_SERVICES[@]}" || true
+  docker compose "${COMPOSE_FILES[@]}" rm -sf "${ROUTED_SERVICES[@]}" || true
+  cleanup_stale_compose_temp_containers
   docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate "${ROUTED_SERVICES[@]}"
 }
 

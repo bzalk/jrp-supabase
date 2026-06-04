@@ -18,6 +18,13 @@ FORCE_REGENERATE_SECRETS="${FORCE_REGENERATE_SECRETS:-false}"
 VERIFY_DNS="${VERIFY_DNS:-true}"
 VERIFY_HTTPS="${VERIFY_HTTPS:-true}"
 COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.traefik.yml)
+COMPOSE_TEMP_CONTAINER_NAMES=(
+  traefik
+  supabase-studio
+  authelia
+  supabase-kong
+  sync-api
+)
 
 if [ -z "$BASE_DOMAIN" ] && [ -n "${1:-}" ]; then
   BASE_DOMAIN="$1"
@@ -201,9 +208,35 @@ verify_dns_points_here() {
   done
 }
 
+cleanup_stale_compose_temp_containers() {
+  local id name prefix suffix removed=false
+
+  while IFS=$'\t' read -r id name; do
+    [ -n "$id" ] || continue
+    prefix="${name%%_*}"
+    suffix="${name#*_}"
+    [ "$prefix" != "$name" ] || continue
+    [[ "$prefix" =~ ^[0-9a-f]{12,}$ ]] || continue
+
+    for candidate in "${COMPOSE_TEMP_CONTAINER_NAMES[@]}"; do
+      if [ "$suffix" = "$candidate" ]; then
+        log "Removing stale Docker Compose recreate container: ${name}"
+        docker rm -f "$id" >/dev/null || true
+        removed=true
+        break
+      fi
+    done
+  done < <(docker ps -a --format '{{.ID}}\t{{.Names}}')
+
+  if [ "$removed" = "false" ]; then
+    log "No stale Docker Compose recreate containers found"
+  fi
+}
+
 start_stack() {
   cd "$INSTALL_DIR/docker"
   docker compose "${COMPOSE_FILES[@]}" pull --ignore-pull-failures || true
+  cleanup_stale_compose_temp_containers
   docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate
 }
 

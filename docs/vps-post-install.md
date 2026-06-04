@@ -90,7 +90,10 @@ curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/rep
 This does not reinstall Docker, does not regenerate `.env` secrets, and does
 not recreate the database. It updates the local Git checkout, updates domain
 values, verifies DNS, force recreates Traefik plus the containers that carry
-Traefik labels, and waits for Let's Encrypt certificates.
+Traefik labels, and waits for Let's Encrypt certificates. It also removes stale
+Docker Compose recreate containers with names like `66afc95e6c6b_authelia`,
+which can be left behind by an interrupted `up --force-recreate` and block the
+next repair run. It does not remove database containers or Docker volumes.
 
 Optional repair overrides:
 
