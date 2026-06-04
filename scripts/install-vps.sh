@@ -614,6 +614,15 @@ END
 $$;
 
 GRANT anon, authenticated, service_role TO authenticator;
+
+GRANT CREATE ON DATABASE postgres TO supabase_auth_admin, supabase_storage_admin, supabase_functions_admin, supabase_admin;
+GRANT USAGE, CREATE ON SCHEMA public TO supabase_auth_admin, supabase_storage_admin, supabase_functions_admin, supabase_admin;
+
+CREATE SCHEMA IF NOT EXISTS auth AUTHORIZATION supabase_auth_admin;
+CREATE SCHEMA IF NOT EXISTS storage AUTHORIZATION supabase_storage_admin;
+CREATE SCHEMA IF NOT EXISTS realtime AUTHORIZATION supabase_admin;
+CREATE SCHEMA IF NOT EXISTS _realtime AUTHORIZATION supabase_admin;
+CREATE SCHEMA IF NOT EXISTS graphql_public AUTHORIZATION supabase_admin;
 SQL
     then
       if ! docker exec -e PGPASSWORD="$password" supabase-db \
