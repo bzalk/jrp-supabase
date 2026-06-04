@@ -16,6 +16,12 @@ Public full installer URL:
 https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/install-vps.sh
 ```
 
+Public Traefik SSL repair URL:
+
+```text
+https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/repair-traefik-ssl.sh
+```
+
 Hostinger post-install example:
 
 ```bash
@@ -70,6 +76,31 @@ domains, checks that DNS points to the VPS before starting TLS, and waits for
 Let's Encrypt certificates. If DNS is intentionally not ready yet, set
 `VERIFY_DNS=false` and `VERIFY_HTTPS=false`, then rerun the installer after DNS
 is corrected.
+
+## Repair Traefik SSL
+
+If DNS was delayed during initial install and Traefik is serving its default
+self-signed certificate, rerun only the route/TLS layer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/repair-traefik-ssl.sh \
+  | bash -s -- example.com
+```
+
+This does not reinstall Docker, does not regenerate `.env` secrets, and does
+not recreate the database. It updates the local Git checkout, updates domain
+values, verifies DNS, force recreates Traefik plus the containers that carry
+Traefik labels, and waits for Let's Encrypt certificates.
+
+Optional repair overrides:
+
+```bash
+export JRP_INSTALL_DIR="/opt/jrp-supabase"
+export UPDATE_REPO="true"
+export VERIFY_DNS="true"
+export VERIFY_HTTPS="true"
+export ENABLE_UFW="true"
+```
 
 After install:
 
