@@ -31,6 +31,13 @@ curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/hos
   | bash
 ```
 
+Equivalent argument form:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/hostinger-post-install.sh \
+  | bash -s -- example.com
+```
+
 DNS records should point at the VPS before install:
 
 ```text
@@ -51,10 +58,18 @@ export JRP_INSTALL_DIR="/opt/jrp-supabase"
 export START_STACK="true"
 export ENABLE_UFW="true"
 export FORCE_REGENERATE_SECRETS="false"
+export VERIFY_DNS="true"
+export VERIFY_HTTPS="true"
 ```
 
 The installer is safe to rerun. Existing generated secrets in `.env` are
 preserved unless `FORCE_REGENERATE_SECRETS=true` is set.
+
+The installer verifies that rendered Traefik labels contain the requested
+domains, checks that DNS points to the VPS before starting TLS, and waits for
+Let's Encrypt certificates. If DNS is intentionally not ready yet, set
+`VERIFY_DNS=false` and `VERIFY_HTTPS=false`, then rerun the installer after DNS
+is corrected.
 
 After install:
 

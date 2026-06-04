@@ -4,6 +4,9 @@ set -Eeuo pipefail
 exec > >(tee -a /post_install.log) 2>&1
 
 # Required. Override in the Hostinger post-install script before running.
+if [ -z "${BASE_DOMAIN:-}" ] && [ -n "${1:-}" ]; then
+  BASE_DOMAIN="$1"
+fi
 : "${BASE_DOMAIN:?Set BASE_DOMAIN, for example BASE_DOMAIN=example.com}"
 
 export BASE_DOMAIN

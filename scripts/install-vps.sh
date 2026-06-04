@@ -15,6 +15,13 @@ ORG_NAME="${ORG_NAME:-Jamrock Partners}"
 ENABLE_UFW="${ENABLE_UFW:-true}"
 START_STACK="${START_STACK:-true}"
 FORCE_REGENERATE_SECRETS="${FORCE_REGENERATE_SECRETS:-false}"
+VERIFY_DNS="${VERIFY_DNS:-true}"
+VERIFY_HTTPS="${VERIFY_HTTPS:-true}"
+COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.traefik.yml)
+
+if [ -z "$BASE_DOMAIN" ] && [ -n "${1:-}" ]; then
+  BASE_DOMAIN="$1"
+fi
 
 log() {
   printf '[jrp-install] %s\n' "$*"
@@ -136,10 +143,102 @@ configure_env() {
   chmod 600 .env
 }
 
+compose_config() {
+  cd "$INSTALL_DIR/docker"
+  docker compose "${COMPOSE_FILES[@]}" config
+}
+
+verify_compose_domains() {
+  local rendered
+  rendered="$(compose_config)"
+  for domain in "$API_DOMAIN" "$STUDIO_DOMAIN" "$AUTH_DOMAIN" "$SYNC_API_DOMAIN"; do
+    local expected
+    expected="$(printf 'Host(`%s`)' "$domain")"
+    if ! grep -qF "$expected" <<<"$rendered"; then
+      fail "rendered Docker Compose config does not contain Traefik ${expected}. Check .env domain values."
+    fi
+  done
+}
+
+server_public_ips() {
+  {
+    curl -4fsS --max-time 10 https://api.ipify.org || true
+    printf '\n'
+    curl -6fsS --max-time 10 https://api64.ipify.org || true
+    printf '\n'
+  } | sed '/^$/d' | sort -u
+}
+
+domain_ips() {
+  local domain="$1"
+  getent ahosts "$domain" | awk '{print $1}' | sort -u
+}
+
+verify_dns_points_here() {
+  if [ "$VERIFY_DNS" != "true" ]; then
+    log "Skipping DNS verification because VERIFY_DNS=${VERIFY_DNS}"
+    return
+  fi
+
+  local server_ips
+  server_ips="$(server_public_ips)"
+  [ -n "$server_ips" ] || fail "could not determine this server's public IP address"
+
+  for domain in "$API_DOMAIN" "$STUDIO_DOMAIN" "$AUTH_DOMAIN" "$SYNC_API_DOMAIN"; do
+    local resolved matched
+    resolved="$(domain_ips "$domain")"
+    matched=false
+    while IFS= read -r ip; do
+      if grep -qx "$ip" <<<"$server_ips"; then
+        matched=true
+        break
+      fi
+    done <<<"$resolved"
+
+    if [ "$matched" != "true" ]; then
+      fail "DNS for ${domain} does not point to this VPS. Resolved: ${resolved:-none}. VPS IP(s): ${server_ips}. Fix DNS before installing TLS."
+    fi
+  done
+}
+
 start_stack() {
   cd "$INSTALL_DIR/docker"
-  docker compose -f docker-compose.yml -f docker-compose.traefik.yml pull --ignore-pull-failures || true
-  docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --build
+  docker compose "${COMPOSE_FILES[@]}" pull --ignore-pull-failures || true
+  docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate
+}
+
+certificate_issuer() {
+  local domain="$1"
+  timeout 12 openssl s_client -connect "${domain}:443" -servername "$domain" </dev/null 2>/dev/null |
+    openssl x509 -noout -issuer 2>/dev/null || true
+}
+
+wait_for_letsencrypt() {
+  if [ "$VERIFY_HTTPS" != "true" ]; then
+    log "Skipping HTTPS certificate verification because VERIFY_HTTPS=${VERIFY_HTTPS}"
+    return
+  fi
+
+  local deadline domain issuer all_ok
+  deadline=$((SECONDS + 360))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    all_ok=true
+    for domain in "$API_DOMAIN" "$STUDIO_DOMAIN" "$AUTH_DOMAIN" "$SYNC_API_DOMAIN"; do
+      issuer="$(certificate_issuer "$domain")"
+      if ! grep -Eiq 'Let.s Encrypt|ISRG Root|R[0-9]+' <<<"$issuer"; then
+        all_ok=false
+        break
+      fi
+    done
+    if [ "$all_ok" = "true" ]; then
+      log "Let's Encrypt certificates are active"
+      return
+    fi
+    sleep 10
+  done
+
+  docker logs --tail 200 traefik || true
+  fail "Traefik did not obtain Let's Encrypt certificates within 360 seconds. Check DNS, ports 80/443, and Traefik logs."
 }
 
 configure_firewall() {
@@ -187,10 +286,13 @@ main() {
   checkout_repo
   log "Configuring stack for ${BASE_DOMAIN}"
   configure_env
+  verify_compose_domains
+  verify_dns_points_here
   configure_firewall
   if [ "$START_STACK" = "true" ]; then
     log "Starting Supabase, Sync API, and Traefik"
     start_stack
+    wait_for_letsencrypt
   else
     log "Skipping stack start because START_STACK=${START_STACK}"
   fi
