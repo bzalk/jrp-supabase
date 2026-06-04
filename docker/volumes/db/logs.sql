@@ -1,6 +1,11 @@
 \set pguser `echo "$POSTGRES_USER"`
 
 \c _supabase
-create schema if not exists _analytics;
-alter schema _analytics owner to :pguser;
+CREATE SCHEMA IF NOT EXISTS _analytics AUTHORIZATION supabase_admin;
+ALTER SCHEMA _analytics OWNER TO supabase_admin;
+GRANT USAGE, CREATE ON SCHEMA _analytics TO supabase_admin;
+GRANT USAGE, CREATE ON SCHEMA public TO supabase_admin;
+GRANT CREATE ON DATABASE _supabase TO supabase_admin;
+ALTER DATABASE _supabase SET search_path TO _analytics, public;
+ALTER ROLE supabase_admin IN DATABASE _supabase SET search_path TO _analytics, public;
 \c postgres

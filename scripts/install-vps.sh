@@ -633,8 +633,20 @@ SQL
             -c 'CREATE DATABASE _supabase WITH OWNER supabase_admin'
       fi
       docker exec -e PGPASSWORD="$password" supabase-db \
-        psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U postgres -d _supabase \
-          -c 'CREATE SCHEMA IF NOT EXISTS _supavisor AUTHORIZATION supabase_admin; ALTER SCHEMA _supavisor OWNER TO supabase_admin'
+        psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U postgres -d _supabase <<'SQL'
+CREATE SCHEMA IF NOT EXISTS public AUTHORIZATION supabase_admin;
+CREATE SCHEMA IF NOT EXISTS _analytics AUTHORIZATION supabase_admin;
+CREATE SCHEMA IF NOT EXISTS _supavisor AUTHORIZATION supabase_admin;
+ALTER SCHEMA public OWNER TO supabase_admin;
+ALTER SCHEMA _analytics OWNER TO supabase_admin;
+ALTER SCHEMA _supavisor OWNER TO supabase_admin;
+GRANT USAGE, CREATE ON SCHEMA public TO supabase_admin;
+GRANT USAGE, CREATE ON SCHEMA _analytics TO supabase_admin;
+GRANT USAGE, CREATE ON SCHEMA _supavisor TO supabase_admin;
+GRANT CREATE ON DATABASE _supabase TO supabase_admin;
+ALTER DATABASE _supabase SET search_path TO _analytics, public;
+ALTER ROLE supabase_admin IN DATABASE _supabase SET search_path TO _analytics, public;
+SQL
       for role in supabase_admin authenticator supabase_auth_admin supabase_storage_admin; do
         docker exec -e PGPASSWORD="$password" supabase-db \
           psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U "$role" -d postgres -c 'select 1' >/dev/null
