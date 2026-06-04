@@ -233,6 +233,7 @@ configure_env() {
   set_env_value .env API_EXTERNAL_URL "https://${API_DOMAIN}"
   set_env_value .env SITE_URL "https://${STUDIO_DOMAIN}"
   set_env_value .env PROXY_DOMAIN "$API_DOMAIN"
+  set_env_value .env POSTGRES_LOG_MIN_MESSAGES "warning"
   set_env_value .env STUDIO_DEFAULT_PROJECT "$PROJECT_NAME"
   set_env_value .env STUDIO_DEFAULT_ORGANIZATION "$ORG_NAME"
   set_secret_if_unset_or_placeholder .env POOLER_TENANT_ID "$(random_hex 8)"
@@ -368,6 +369,17 @@ wait_for_route_container_names_gone() {
   fail "Timed out waiting for route container names to be released"
 }
 
+collect_startup_diagnostics() {
+  cd "$INSTALL_DIR/docker"
+  log "Collecting startup diagnostics"
+  docker compose "${COMPOSE_FILES[@]}" ps -a || true
+  docker inspect -f 'name={{.Name}} status={{.State.Status}} running={{.State.Running}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} exit_code={{.State.ExitCode}} error={{.State.Error}} restart_count={{.RestartCount}}' supabase-db || true
+  docker inspect -f '{{range .State.Health.Log}}{{println .Start .End .ExitCode .Output}}{{end}}' supabase-db || true
+  docker logs --tail 300 supabase-db || true
+  docker logs --tail 160 supabase-analytics || true
+  docker logs --tail 160 sync-api || true
+}
+
 start_stack() {
   cd "$INSTALL_DIR/docker"
   acquire_stack_lock
@@ -375,7 +387,10 @@ start_stack() {
   cleanup_stale_compose_temp_containers
   remove_conflicting_route_containers
   wait_for_route_container_names_gone
-  docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate
+  if ! docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate; then
+    collect_startup_diagnostics
+    fail "Docker Compose stack failed to start"
+  fi
 }
 
 certificate_issuer() {
