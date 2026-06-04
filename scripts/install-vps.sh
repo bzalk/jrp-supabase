@@ -632,7 +632,7 @@ SQL
           psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U postgres -d postgres \
             -c 'CREATE DATABASE _supabase WITH OWNER supabase_admin'
       fi
-      docker exec -e PGPASSWORD="$password" supabase-db \
+      docker exec -i -e PGPASSWORD="$password" supabase-db \
         psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -h localhost -U postgres -d _supabase <<'SQL'
 CREATE SCHEMA IF NOT EXISTS public AUTHORIZATION supabase_admin;
 CREATE SCHEMA IF NOT EXISTS _analytics AUTHORIZATION supabase_admin;
