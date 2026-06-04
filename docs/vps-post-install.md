@@ -86,6 +86,9 @@ curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/res
 
 GitHub is used only as a read-only source for downloading scripts and cloning
 the public repo into the VPS. The install/reset scripts do not push to GitHub.
+The reset and install scripts force their working directory to `/` before
+deleting or recreating `/opt/jrp-supabase`, so a shell started inside the old
+checkout cannot break the reinstall with `getcwd` errors.
 
 DNS records should point at the VPS before install:
 

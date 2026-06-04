@@ -438,6 +438,7 @@ EOF
 }
 
 main() {
+  cd /
   require_root
   log "Installing OS packages"
   install_packages

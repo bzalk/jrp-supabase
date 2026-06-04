@@ -250,6 +250,7 @@ remove_project_docker_resources() {
 
 remove_local_files() {
   log "Removing install directory ${INSTALL_DIR}"
+  cd /
   rm -rf "$INSTALL_DIR"
   rm -f /root/jrp-generated-secrets.log /root/jrp-install-vps.sh
 }
@@ -267,6 +268,7 @@ run_fresh_install() {
   export JRP_INSTALL_DIR="$INSTALL_DIR"
 
   log "Downloading installer from read-only repo source ${REPO_URL}#${REPO_BRANCH}"
+  cd /
   curl -fsSL "https://raw.githubusercontent.com/bzalk/jrp-supabase/${REPO_BRANCH}/scripts/install-vps.sh" \
     -o /tmp/jrp-install-vps.sh
   chmod +x /tmp/jrp-install-vps.sh
@@ -275,6 +277,7 @@ run_fresh_install() {
 
 main() {
   parse_args "$@"
+  cd /
   exec > >(tee -a "$RESET_LOG_FILE") 2>&1
   require_root
   confirm_reset

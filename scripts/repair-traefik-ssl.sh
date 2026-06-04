@@ -507,6 +507,7 @@ wait_for_letsencrypt() {
 }
 
 main() {
+  cd /
   require_root
   init_logging
   trap 'on_exit $?' EXIT
