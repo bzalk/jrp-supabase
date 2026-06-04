@@ -502,6 +502,53 @@ collect_startup_diagnostics() {
   done
 }
 
+repair_db_roles() {
+  cd "$INSTALL_DIR/docker"
+
+  local password
+  password="$(read_env_value .env POSTGRES_PASSWORD)"
+  [ -n "$password" ] || fail "POSTGRES_PASSWORD is empty; cannot repair database roles"
+
+  log "Ensuring Supabase internal database roles use the generated Postgres password"
+  docker exec -e PGPASSWORD="$password" supabase-db \
+    psql -v ON_ERROR_STOP=1 --no-password --no-psqlrc -U postgres -d postgres -v pgpass="$password" <<'SQL'
+SELECT format(
+  'CREATE ROLE supabase_admin WITH LOGIN SUPERUSER CREATEDB CREATEROLE REPLICATION BYPASSRLS PASSWORD %L',
+  :'pgpass'
+)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM pg_roles
+  WHERE rolname = 'supabase_admin'
+)
+\gexec
+
+SELECT format('ALTER ROLE %I WITH PASSWORD %L', rolname, :'pgpass')
+FROM pg_roles
+WHERE rolname IN (
+  'supabase_admin',
+  'authenticator',
+  'pgbouncer',
+  'supabase_auth_admin',
+  'supabase_functions_admin',
+  'supabase_storage_admin'
+)
+\gexec
+
+SELECT rolname
+FROM pg_roles
+WHERE rolname IN (
+  'supabase_admin',
+  'authenticator',
+  'pgbouncer',
+  'supabase_auth_admin',
+  'supabase_functions_admin',
+  'supabase_storage_admin'
+)
+ORDER BY rolname;
+SQL
+}
+
 start_stack() {
   cd "$INSTALL_DIR/docker"
   acquire_stack_lock
@@ -509,6 +556,11 @@ start_stack() {
   cleanup_stale_compose_temp_containers
   remove_conflicting_route_containers
   wait_for_route_container_names_gone
+  if ! docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate db; then
+    collect_startup_diagnostics
+    fail "Docker Compose database service failed to start"
+  fi
+  repair_db_roles
   if ! docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate; then
     collect_startup_diagnostics
     fail "Docker Compose stack failed to start"

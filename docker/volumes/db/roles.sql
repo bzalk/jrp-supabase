@@ -13,8 +13,14 @@ WHERE NOT EXISTS (
 \gexec
 
 ALTER USER supabase_admin WITH PASSWORD :'pgpass';
-ALTER USER authenticator WITH PASSWORD :'pgpass';
-ALTER USER pgbouncer WITH PASSWORD :'pgpass';
-ALTER USER supabase_auth_admin WITH PASSWORD :'pgpass';
-ALTER USER supabase_functions_admin WITH PASSWORD :'pgpass';
-ALTER USER supabase_storage_admin WITH PASSWORD :'pgpass';
+
+SELECT format('ALTER ROLE %I WITH PASSWORD %L', rolname, :'pgpass')
+FROM pg_roles
+WHERE rolname IN (
+  'authenticator',
+  'pgbouncer',
+  'supabase_auth_admin',
+  'supabase_functions_admin',
+  'supabase_storage_admin'
+)
+\gexec
