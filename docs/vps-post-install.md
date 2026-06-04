@@ -22,6 +22,12 @@ Public Traefik SSL repair URL:
 https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/repair-traefik-ssl.sh
 ```
 
+Public destructive reset URL:
+
+```text
+https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh
+```
+
 Public repair log endpoints on each installed Sync API:
 
 ```text
@@ -51,6 +57,28 @@ Equivalent argument form:
 curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/hostinger-post-install.sh \
   | bash -s -- example.com
 ```
+
+## Reset And Try Again
+
+Use this only when the VPS should be treated like a scratch install. It removes
+the local checkout, stack containers, project Docker volumes, local bind-mounted
+data under `/opt/jrp-supabase`, and generated local secrets, then downloads and
+runs the normal installer again.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh \
+  | CONFIRM_RESET=RESET bash -s -- example.com
+```
+
+To wipe without reinstalling:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh \
+  | CONFIRM_RESET=RESET RUN_INSTALL=false bash -s -- example.com
+```
+
+GitHub is used only as a read-only source for downloading scripts and cloning
+the public repo into the VPS. The install/reset scripts do not push to GitHub.
 
 DNS records should point at the VPS before install:
 
