@@ -77,13 +77,13 @@ Let's Encrypt certificates. If DNS is intentionally not ready yet, set
 `VERIFY_DNS=false` and `VERIFY_HTTPS=false`, then rerun the installer after DNS
 is corrected.
 
-Repo updates are single-branch only. The installer and repair script fetch only
+Repo updates are single-branch only. The installer fetches only
 `refs/heads/JRP_REPO_BRANCH` into `FETCH_HEAD` using an empty Git refmap, then
-fast-forward from there without using `git pull` or rewriting `origin/main`. A
-local lock prevents overlapping install/repair runs from updating the same
-checkout at the same time. If the checkout updates while a public bootstrap
-script is running, the script re-runs itself from the updated local checkout
-before continuing.
+fast-forwards from there without using `git pull` or rewriting `origin/main`. A
+local lock prevents overlapping install runs from updating the same checkout at
+the same time. If the checkout updates while a public bootstrap script is
+running, the installer re-runs itself from the updated local checkout before
+continuing.
 
 ## Repair Traefik SSL
 
@@ -96,29 +96,33 @@ curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/rep
 ```
 
 This does not reinstall Docker, does not regenerate `.env` secrets, and does
-not recreate the database. It updates the local Git checkout, updates domain
-values, verifies DNS, force recreates Traefik plus the containers that carry
-Traefik labels, and waits for Let's Encrypt certificates. It also removes stale
-Docker Compose recreate containers with names like `66afc95e6c6b_authelia`,
-which can be left behind by an interrupted `up --force-recreate` and block the
-next repair run. The repair script also removes exact route-container name
-conflicts such as `authelia` after Compose cleanup, then recreates only the
-route containers with `--no-deps`, so a separate unhealthy Supabase service such
-as analytics cannot block TLS repair. It waits until Docker fully releases those
-route container names before creating replacements. A Docker Compose stack lock
-prevents overlapping install and repair runs from recreating the same route
-containers at the same time. It does not remove database containers or Docker
-volumes.
+not recreate the database. It does not update the local Git checkout by default;
+the public `curl` command already downloads the latest repair script. It updates
+domain values, verifies DNS, force recreates Traefik plus the containers that
+carry Traefik labels, and waits for Let's Encrypt certificates. It also removes
+stale Docker Compose recreate containers with names like
+`66afc95e6c6b_authelia`, which can be left behind by an interrupted
+`up --force-recreate` and block the next repair run. The repair script also
+removes exact route-container name conflicts such as `authelia` after Compose
+cleanup, then recreates only the route containers with `--no-deps`, so a
+separate unhealthy Supabase service such as analytics cannot block TLS repair.
+It waits until Docker fully releases those route container names before creating
+replacements. A Docker Compose stack lock prevents overlapping install and
+repair runs from recreating the same route containers at the same time. It does
+not remove database containers or Docker volumes.
 
 Optional repair overrides:
 
 ```bash
 export JRP_INSTALL_DIR="/opt/jrp-supabase"
-export UPDATE_REPO="true"
+export UPDATE_REPO="false"
 export VERIFY_DNS="true"
 export VERIFY_HTTPS="true"
 export ENABLE_UFW="true"
 ```
+
+Set `UPDATE_REPO=true` only when you intentionally want the repair run to pull
+new stack files into that VPS checkout before repairing TLS.
 
 After install:
 

@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 INSTALL_DIR="${JRP_INSTALL_DIR:-/opt/jrp-supabase}"
 REPO_BRANCH="${JRP_REPO_BRANCH:-main}"
-UPDATE_REPO="${UPDATE_REPO:-true}"
+UPDATE_REPO="${UPDATE_REPO:-false}"
 BASE_DOMAIN="${BASE_DOMAIN:-}"
 API_DOMAIN="${API_DOMAIN:-}"
 STUDIO_DOMAIN="${STUDIO_DOMAIN:-}"
@@ -97,6 +97,15 @@ acquire_repo_lock() {
   trap 'rm -rf "$INSTALL_DIR/.jrp-repo-update.lockdir"' EXIT
 }
 
+release_repo_lock() {
+  if command -v flock >/dev/null 2>&1; then
+    flock -u 9 2>/dev/null || true
+    exec 9>&- 2>/dev/null || true
+  else
+    rm -rf "$INSTALL_DIR/.jrp-repo-update.lockdir"
+  fi
+}
+
 acquire_stack_lock() {
   local lock_file="$INSTALL_DIR/.jrp-stack-update.lock"
   local lock_dir="$INSTALL_DIR/.jrp-stack-update.lockdir"
@@ -142,6 +151,7 @@ update_repo() {
   fi
   git -C "$INSTALL_DIR" merge --ff-only FETCH_HEAD
   after="$(git -C "$INSTALL_DIR" rev-parse HEAD 2>/dev/null || true)"
+  release_repo_lock
   if [ -n "$before" ] && [ -n "$after" ] && [ "$before" != "$after" ]; then
     REPO_UPDATED=true
   fi
