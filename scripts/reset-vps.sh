@@ -120,6 +120,22 @@ require_root() {
   fi
 }
 
+validate_sync_api_token() {
+  local token="$1"
+
+  [ -n "$token" ] || fail "SYNC_API_TOKEN is required when RUN_INSTALL=true. Generate it in the control plane/UX and pass it to reset so the reinstalled VPS matches the saved local environment token."
+  [ "${#token}" -ge 32 ] || fail "SYNC_API_TOKEN must be at least 32 characters"
+  if [[ "$token" =~ [[:space:]] ]]; then
+    fail "SYNC_API_TOKEN must not contain whitespace"
+  fi
+}
+
+require_sync_api_token_for_install() {
+  if [ "$RUN_INSTALL" = "true" ]; then
+    validate_sync_api_token "${SYNC_API_TOKEN:-}"
+  fi
+}
+
 init_logging() {
   mkdir -p "$(dirname "$RESET_LOG_FILE")" "$(dirname "$RESET_LATEST_LOG_FILE")"
   touch "$RESET_LOG_FILE"
@@ -318,6 +334,7 @@ run_fresh_install() {
   fi
 
   export BASE_DOMAIN
+  export SYNC_API_TOKEN
   export JRP_REPO_URL="$REPO_URL"
   export JRP_REPO_BRANCH="$REPO_BRANCH"
   export JRP_INSTALL_DIR="$INSTALL_DIR"
@@ -335,6 +352,7 @@ main() {
   init_logging
   require_root
   confirm_reset
+  require_sync_api_token_for_install
   log "Reset log: ${RESET_LOG_FILE}"
   log "Latest reset log: ${RESET_LATEST_LOG_FILE}"
   log "GitHub is used as a read-only source for downloading/cloning scripts."

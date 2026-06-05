@@ -52,6 +52,7 @@ export BASE_DOMAIN="example.com"
 export LETSENCRYPT_EMAIL="admin@example.com"
 export PROJECT_NAME="Client Project"
 export ORG_NAME="Jamrock Partners"
+export SYNC_API_TOKEN="<control-plane-generated-token>"
 
 curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/hostinger-post-install.sh \
   | bash
@@ -61,7 +62,17 @@ Equivalent argument form:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/hostinger-post-install.sh \
-  | bash -s -- example.com
+  | SYNC_API_TOKEN="<control-plane-generated-token>" bash -s -- example.com
+```
+
+`SYNC_API_TOKEN` is required for first install. The control plane/UX should
+generate a strong random token, store it with the local environment record, and
+pass the same value to the VPS installer. The installer writes that exact value
+to `/opt/jrp-supabase/docker/.env`; it does not generate a replacement token.
+Protected Sync API calls must use:
+
+```http
+Authorization: Bearer <SYNC_API_TOKEN>
 ```
 
 ## Reset And Try Again
@@ -73,7 +84,7 @@ runs the normal installer again.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh \
-  | CONFIRM_RESET=CONFIRM bash -s -- example.com
+  | CONFIRM_RESET=CONFIRM SYNC_API_TOKEN="<control-plane-generated-token>" bash -s -- example.com
 ```
 
 To wipe without reinstalling:
@@ -87,14 +98,14 @@ Equivalent CLI-argument form:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh \
-  | bash -s -- example.com --confirm CONFIRM
+  | SYNC_API_TOKEN="<control-plane-generated-token>" bash -s -- example.com --confirm CONFIRM
 ```
 
 Smoke-test the reset flow without removing anything:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh \
-  | bash -s -- example.com --confirm CONFIRM --dry-run
+  | SYNC_API_TOKEN="<control-plane-generated-token>" bash -s -- example.com --confirm CONFIRM --dry-run
 ```
 
 GitHub is used only as a read-only source for downloading scripts and cloning
@@ -105,6 +116,10 @@ checkout cannot break the reinstall with `getcwd` errors.
 The reset script also updates `/root/jrp-reset-vps-latest.log` so long-running
 SSH resets can be started in the background and polled without waiting for the
 HTTP request to stay open.
+
+When `RUN_INSTALL=true`, reset also requires `SYNC_API_TOKEN` before it removes
+the existing install. This prevents a reinstalled VPS from coming back with a
+different Sync API token than the one stored by the control plane.
 
 DNS records should point at the VPS before install:
 
@@ -123,6 +138,7 @@ export STUDIO_DOMAIN="studio.example.com"
 export AUTH_DOMAIN="auth.example.com"
 export SYNC_API_DOMAIN="sync.example.com"
 export JRP_INSTALL_DIR="/opt/jrp-supabase"
+export SYNC_API_TOKEN="<control-plane-generated-token>"
 export START_STACK="true"
 export ENABLE_UFW="true"
 export FORCE_REGENERATE_SECRETS="false"

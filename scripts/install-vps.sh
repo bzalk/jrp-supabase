@@ -44,6 +44,16 @@ random_hex() {
   openssl rand -hex "$1"
 }
 
+validate_sync_api_token() {
+  local token="$1"
+
+  [ -n "$token" ] || fail "SYNC_API_TOKEN is required. Generate it in the control plane/UX and pass it to the installer."
+  [ "${#token}" -ge 32 ] || fail "SYNC_API_TOKEN must be at least 32 characters"
+  if [[ "$token" =~ [[:space:]] ]]; then
+    fail "SYNC_API_TOKEN must not contain whitespace"
+  fi
+}
+
 set_env_value() {
   local file="$1"
   local key="$2"
@@ -252,6 +262,22 @@ configure_env() {
     log "Preserving existing generated Supabase secrets in ${INSTALL_DIR}/docker/.env"
   fi
 
+  if [ -n "${SYNC_API_TOKEN:-}" ]; then
+    validate_sync_api_token "$SYNC_API_TOKEN"
+    set_env_value .env SYNC_API_TOKEN "$SYNC_API_TOKEN"
+  else
+    existing_sync_api_token="$(read_env_value .env SYNC_API_TOKEN)"
+    case "$existing_sync_api_token" in
+      ""|change-me-*|your-*|secret1234)
+        fail "SYNC_API_TOKEN is required for first install. The UI/control plane must generate and store it, then pass the same value to this installer."
+        ;;
+      *)
+        validate_sync_api_token "$existing_sync_api_token"
+        log "Preserving existing Sync API token in ${INSTALL_DIR}/docker/.env"
+        ;;
+    esac
+  fi
+
   set_env_value .env API_DOMAIN "$API_DOMAIN"
   set_env_value .env STUDIO_DOMAIN "$STUDIO_DOMAIN"
   set_env_value .env AUTH_DOMAIN "$AUTH_DOMAIN"
@@ -265,7 +291,6 @@ configure_env() {
   set_env_value .env STUDIO_DEFAULT_PROJECT "$PROJECT_NAME"
   set_env_value .env STUDIO_DEFAULT_ORGANIZATION "$ORG_NAME"
   set_secret_if_unset_or_placeholder .env POOLER_TENANT_ID "$(random_hex 8)"
-  set_secret_if_unset_or_placeholder .env SYNC_API_TOKEN "$(random_hex 32)"
   set_secret_if_unset_or_placeholder .env AUTHELIA_SESSION_SECRET "$(random_hex 32)"
   set_secret_if_unset_or_placeholder .env AUTHELIA_STORAGE_ENCRYPTION_KEY "$(random_hex 32)"
 
