@@ -262,21 +262,8 @@ configure_env() {
     log "Preserving existing generated Supabase secrets in ${INSTALL_DIR}/docker/.env"
   fi
 
-  if [ -n "${SYNC_API_TOKEN:-}" ]; then
-    validate_sync_api_token "$SYNC_API_TOKEN"
-    set_env_value .env SYNC_API_TOKEN "$SYNC_API_TOKEN"
-  else
-    existing_sync_api_token="$(read_env_value .env SYNC_API_TOKEN)"
-    case "$existing_sync_api_token" in
-      ""|change-me-*|your-*|secret1234)
-        fail "SYNC_API_TOKEN is required for first install. The UI/control plane must generate and store it, then pass the same value to this installer."
-        ;;
-      *)
-        validate_sync_api_token "$existing_sync_api_token"
-        log "Preserving existing Sync API token in ${INSTALL_DIR}/docker/.env"
-        ;;
-    esac
-  fi
+  validate_sync_api_token "${SYNC_API_TOKEN:-}"
+  set_env_value .env SYNC_API_TOKEN "$SYNC_API_TOKEN"
 
   set_env_value .env API_DOMAIN "$API_DOMAIN"
   set_env_value .env STUDIO_DOMAIN "$STUDIO_DOMAIN"

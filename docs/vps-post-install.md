@@ -65,10 +65,11 @@ curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/hos
   | SYNC_API_TOKEN="<control-plane-generated-token>" bash -s -- example.com
 ```
 
-`SYNC_API_TOKEN` is required for first install. The control plane/UX should
+`SYNC_API_TOKEN` is required for every install. The control plane/UX should
 generate a strong random token, store it with the local environment record, and
 pass the same value to the VPS installer. The installer writes that exact value
-to `/opt/jrp-supabase/docker/.env`; it does not generate a replacement token.
+to `/opt/jrp-supabase/docker/.env`, replacing any previous Sync API token. The
+installer does not generate or preserve this token locally.
 Protected Sync API calls must use:
 
 ```http
@@ -117,9 +118,9 @@ The reset script also updates `/root/jrp-reset-vps-latest.log` so long-running
 SSH resets can be started in the background and polled without waiting for the
 HTTP request to stay open.
 
-When `RUN_INSTALL=true`, reset also requires `SYNC_API_TOKEN` before it removes
-the existing install. This prevents a reinstalled VPS from coming back with a
-different Sync API token than the one stored by the control plane.
+When `RUN_INSTALL=true`, reset also requires a fresh `SYNC_API_TOKEN` before it
+removes the existing install. This keeps the reinstalled VPS aligned with the
+new token stored by the control plane.
 
 DNS records should point at the VPS before install:
 
