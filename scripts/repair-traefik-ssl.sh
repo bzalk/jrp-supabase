@@ -10,6 +10,8 @@ STUDIO_DOMAIN="${STUDIO_DOMAIN:-}"
 AUTH_DOMAIN="${AUTH_DOMAIN:-}"
 SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
+LETSENCRYPT_CA_SERVER="${LETSENCRYPT_CA_SERVER:-}"
+LETSENCRYPT_STAGING="${LETSENCRYPT_STAGING:-false}"
 VERIFY_DNS="${VERIFY_DNS:-true}"
 VERIFY_HTTPS="${VERIFY_HTTPS:-true}"
 ENABLE_UFW="${ENABLE_UFW:-true}"
@@ -207,6 +209,7 @@ configure_domains() {
     AUTH_DOMAIN="${AUTH_DOMAIN:-$(read_env_value "$env_file" AUTH_DOMAIN)}"
     SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-$(read_env_value "$env_file" SYNC_API_DOMAIN)}"
     LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-$(read_env_value "$env_file" LETSENCRYPT_EMAIL)}"
+    LETSENCRYPT_CA_SERVER="${LETSENCRYPT_CA_SERVER:-$(read_env_value "$env_file" LETSENCRYPT_CA_SERVER)}"
   fi
 
   [ -n "$API_DOMAIN" ] || fail "API_DOMAIN is not set and BASE_DOMAIN was not provided"
@@ -214,12 +217,23 @@ configure_domains() {
   [ -n "$AUTH_DOMAIN" ] || fail "AUTH_DOMAIN is not set and BASE_DOMAIN was not provided"
   [ -n "$SYNC_API_DOMAIN" ] || fail "SYNC_API_DOMAIN is not set and BASE_DOMAIN was not provided"
   [ -n "$LETSENCRYPT_EMAIL" ] || fail "LETSENCRYPT_EMAIL is not set"
+  if [ -z "$LETSENCRYPT_CA_SERVER" ]; then
+    if [ "$LETSENCRYPT_STAGING" = "true" ]; then
+      LETSENCRYPT_CA_SERVER="https://acme-staging-v02.api.letsencrypt.org/directory"
+    else
+      LETSENCRYPT_CA_SERVER="https://acme-v02.api.letsencrypt.org/directory"
+    fi
+  fi
+  if [ "$LETSENCRYPT_STAGING" = "true" ]; then
+    log "Using Let's Encrypt staging CA for testing: ${LETSENCRYPT_CA_SERVER}"
+  fi
 
   set_env_value "$env_file" API_DOMAIN "$API_DOMAIN"
   set_env_value "$env_file" STUDIO_DOMAIN "$STUDIO_DOMAIN"
   set_env_value "$env_file" AUTH_DOMAIN "$AUTH_DOMAIN"
   set_env_value "$env_file" SYNC_API_DOMAIN "$SYNC_API_DOMAIN"
   set_env_value "$env_file" LETSENCRYPT_EMAIL "$LETSENCRYPT_EMAIL"
+  set_env_value "$env_file" LETSENCRYPT_CA_SERVER "$LETSENCRYPT_CA_SERVER"
   set_env_value "$env_file" SUPABASE_PUBLIC_URL "https://${API_DOMAIN}"
   set_env_value "$env_file" API_EXTERNAL_URL "https://${API_DOMAIN}"
   set_env_value "$env_file" SITE_URL "https://${STUDIO_DOMAIN}"
@@ -381,6 +395,12 @@ certificate_issuer() {
     openssl x509 -noout -issuer 2>/dev/null || true
 }
 
+acme_rate_limit_message() {
+  docker logs --since 20m traefik 2>&1 |
+    grep -E "urn:ietf:params:acme:error:rateLimited|too many certificates|too many new orders|retry after [0-9]{4}-[0-9]{2}-[0-9]{2}" |
+    tail -n 1 || true
+}
+
 certificate_subject() {
   local domain="$1"
   timeout 12 openssl s_client -connect "${domain}:443" -servername "$domain" </dev/null 2>/dev/null |
@@ -424,7 +444,7 @@ write_status_report() {
   log "STUDIO_DOMAIN=${STUDIO_DOMAIN:-none}"
   log "AUTH_DOMAIN=${AUTH_DOMAIN:-none}"
   log "SYNC_API_DOMAIN=${SYNC_API_DOMAIN:-none}"
-  log "VERIFY_DNS=${VERIFY_DNS} VERIFY_HTTPS=${VERIFY_HTTPS} ENABLE_UFW=${ENABLE_UFW} UPDATE_REPO=${UPDATE_REPO} REPAIR_STATUS_ONLY=${REPAIR_STATUS_ONLY}"
+  log "VERIFY_DNS=${VERIFY_DNS} VERIFY_HTTPS=${VERIFY_HTTPS} ENABLE_UFW=${ENABLE_UFW} UPDATE_REPO=${UPDATE_REPO} REPAIR_STATUS_ONLY=${REPAIR_STATUS_ONLY} LETSENCRYPT_CA_SERVER=${LETSENCRYPT_CA_SERVER}"
   log "Server public IPs: $(server_public_ips | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
 
   run_status_command "Docker version" docker version
@@ -481,9 +501,18 @@ wait_for_letsencrypt() {
     return
   fi
 
-  local deadline domain issuer all_ok
+  local deadline domain issuer all_ok rate_limit
   deadline=$((SECONDS + 360))
   while [ "$SECONDS" -lt "$deadline" ]; do
+    rate_limit="$(acme_rate_limit_message)"
+    if [ -n "$rate_limit" ]; then
+      for domain in "$API_DOMAIN" "$STUDIO_DOMAIN" "$AUTH_DOMAIN" "$SYNC_API_DOMAIN"; do
+        log "${domain} $(certificate_subject "$domain") $(certificate_issuer "$domain")"
+      done
+      docker logs --tail 120 traefik || true
+      fail "Let's Encrypt rate limit encountered. ${rate_limit}. Preserve ACME storage, wait until the retry-after time, or use LETSENCRYPT_STAGING=true for test resets."
+    fi
+
     all_ok=true
     for domain in "$API_DOMAIN" "$STUDIO_DOMAIN" "$AUTH_DOMAIN" "$SYNC_API_DOMAIN"; do
       issuer="$(certificate_issuer "$domain")"

@@ -10,6 +10,8 @@ STUDIO_DOMAIN="${STUDIO_DOMAIN:-}"
 AUTH_DOMAIN="${AUTH_DOMAIN:-}"
 SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
+LETSENCRYPT_CA_SERVER="${LETSENCRYPT_CA_SERVER:-}"
+LETSENCRYPT_STAGING="${LETSENCRYPT_STAGING:-false}"
 PROJECT_NAME="${PROJECT_NAME:-JRP Supabase}"
 ORG_NAME="${ORG_NAME:-Jamrock Partners}"
 ENABLE_UFW="${ENABLE_UFW:-true}"
@@ -247,6 +249,16 @@ configure_env() {
   AUTH_DOMAIN="${AUTH_DOMAIN:-auth.${BASE_DOMAIN}}"
   SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-sync-api.${BASE_DOMAIN}}"
   LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-admin@${BASE_DOMAIN}}"
+  if [ -z "$LETSENCRYPT_CA_SERVER" ]; then
+    if [ "$LETSENCRYPT_STAGING" = "true" ]; then
+      LETSENCRYPT_CA_SERVER="https://acme-staging-v02.api.letsencrypt.org/directory"
+    else
+      LETSENCRYPT_CA_SERVER="https://acme-v02.api.letsencrypt.org/directory"
+    fi
+  fi
+  if [ "$LETSENCRYPT_STAGING" = "true" ]; then
+    log "Using Let's Encrypt staging CA for testing: ${LETSENCRYPT_CA_SERVER}"
+  fi
 
   cd "$INSTALL_DIR/docker"
   created_env=false
@@ -270,6 +282,7 @@ configure_env() {
   set_env_value .env AUTH_DOMAIN "$AUTH_DOMAIN"
   set_env_value .env SYNC_API_DOMAIN "$SYNC_API_DOMAIN"
   set_env_value .env LETSENCRYPT_EMAIL "$LETSENCRYPT_EMAIL"
+  set_env_value .env LETSENCRYPT_CA_SERVER "$LETSENCRYPT_CA_SERVER"
   set_env_value .env SUPABASE_PUBLIC_URL "https://${API_DOMAIN}"
   set_env_value .env API_EXTERNAL_URL "https://${API_DOMAIN}"
   set_env_value .env SITE_URL "https://${STUDIO_DOMAIN}"
@@ -707,15 +720,27 @@ certificate_issuer() {
     openssl x509 -noout -issuer 2>/dev/null || true
 }
 
+acme_rate_limit_message() {
+  docker logs --since 20m traefik 2>&1 |
+    grep -E 'urn:ietf:params:acme:error:rateLimited|too many certificates|too many new orders|retry after [0-9]{4}-[0-9]{2}-[0-9]{2}' |
+    tail -n 1 || true
+}
+
 wait_for_letsencrypt() {
   if [ "$VERIFY_HTTPS" != "true" ]; then
     log "Skipping HTTPS certificate verification because VERIFY_HTTPS=${VERIFY_HTTPS}"
     return
   fi
 
-  local deadline domain issuer all_ok
+  local deadline domain issuer all_ok rate_limit
   deadline=$((SECONDS + 360))
   while [ "$SECONDS" -lt "$deadline" ]; do
+    rate_limit="$(acme_rate_limit_message)"
+    if [ -n "$rate_limit" ]; then
+      docker logs --tail 120 traefik || true
+      fail "Let's Encrypt rate limit encountered. ${rate_limit}. Preserve ACME storage, wait until the retry-after time, or use LETSENCRYPT_STAGING=true for test resets."
+    fi
+
     all_ok=true
     for domain in "$API_DOMAIN" "$STUDIO_DOMAIN" "$AUTH_DOMAIN" "$SYNC_API_DOMAIN"; do
       issuer="$(certificate_issuer "$domain")"

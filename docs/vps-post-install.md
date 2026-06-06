@@ -154,6 +154,8 @@ export AUTH_DOMAIN="auth.example.com"
 export SYNC_API_DOMAIN="sync.example.com"
 export JRP_INSTALL_DIR="/opt/jrp-supabase"
 export SYNC_API_TOKEN="<control-plane-generated-token>"
+export LETSENCRYPT_STAGING="false"
+export LETSENCRYPT_CA_SERVER="https://acme-v02.api.letsencrypt.org/directory"
 export START_STACK="true"
 export ENABLE_UFW="true"
 export FORCE_REGENERATE_SECRETS="false"
@@ -169,6 +171,17 @@ domains, checks that DNS points to the VPS before starting TLS, and waits for
 Let's Encrypt certificates. If DNS is intentionally not ready yet, set
 `VERIFY_DNS=false` and `VERIFY_HTTPS=false`, then rerun the installer after DNS
 is corrected.
+
+For repeated development/testing of the install or repair flow, set
+`LETSENCRYPT_STAGING=true`. Staging certificates are not trusted by browsers, but
+they avoid consuming production issuance limits while validating that DNS,
+Traefik, and HTTP-01 challenges are wired correctly. Use production only when
+the flow is stable.
+
+If Traefik returns an ACME rate-limit error, the installer exits early and logs
+the exact Let’s Encrypt `retry after` timestamp. The UX should surface that line
+and avoid retrying production issuance before the timestamp. Repeated retries
+before that time will keep failing.
 
 Repo updates are single-branch only. The installer fetches only
 `refs/heads/JRP_REPO_BRANCH` into `FETCH_HEAD` using an empty Git refmap, then
@@ -225,6 +238,8 @@ export JRP_INSTALL_DIR="/opt/jrp-supabase"
 export UPDATE_REPO="false"
 export VERIFY_DNS="true"
 export VERIFY_HTTPS="true"
+export LETSENCRYPT_STAGING="false"
+export LETSENCRYPT_CA_SERVER="https://acme-v02.api.letsencrypt.org/directory"
 export ENABLE_UFW="true"
 export REPAIR_STATUS_ONLY="false"
 ```
