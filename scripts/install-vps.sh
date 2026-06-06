@@ -12,6 +12,7 @@ SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 LETSENCRYPT_CA_SERVER="${LETSENCRYPT_CA_SERVER:-}"
 LETSENCRYPT_STAGING="${LETSENCRYPT_STAGING:-false}"
+LETSENCRYPT_PRODUCTION="${LETSENCRYPT_PRODUCTION:-false}"
 PROJECT_NAME="${PROJECT_NAME:-JRP Supabase}"
 ORG_NAME="${ORG_NAME:-Jamrock Partners}"
 ENABLE_UFW="${ENABLE_UFW:-true}"
@@ -250,14 +251,16 @@ configure_env() {
   SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-sync-api.${BASE_DOMAIN}}"
   LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-admin@${BASE_DOMAIN}}"
   if [ -z "$LETSENCRYPT_CA_SERVER" ]; then
-    if [ "$LETSENCRYPT_STAGING" = "true" ]; then
-      LETSENCRYPT_CA_SERVER="https://acme-staging-v02.api.letsencrypt.org/directory"
-    else
+    if [ "$LETSENCRYPT_PRODUCTION" = "true" ] && [ "$LETSENCRYPT_STAGING" != "true" ]; then
       LETSENCRYPT_CA_SERVER="https://acme-v02.api.letsencrypt.org/directory"
+    else
+      LETSENCRYPT_CA_SERVER="https://acme-staging-v02.api.letsencrypt.org/directory"
     fi
   fi
-  if [ "$LETSENCRYPT_STAGING" = "true" ]; then
+  if [ "$LETSENCRYPT_CA_SERVER" = "https://acme-staging-v02.api.letsencrypt.org/directory" ]; then
     log "Using Let's Encrypt staging CA for testing: ${LETSENCRYPT_CA_SERVER}"
+  else
+    log "Using Let's Encrypt production CA because LETSENCRYPT_PRODUCTION=${LETSENCRYPT_PRODUCTION}: ${LETSENCRYPT_CA_SERVER}"
   fi
 
   cd "$INSTALL_DIR/docker"
@@ -283,6 +286,7 @@ configure_env() {
   set_env_value .env SYNC_API_DOMAIN "$SYNC_API_DOMAIN"
   set_env_value .env LETSENCRYPT_EMAIL "$LETSENCRYPT_EMAIL"
   set_env_value .env LETSENCRYPT_CA_SERVER "$LETSENCRYPT_CA_SERVER"
+  set_env_value .env LETSENCRYPT_PRODUCTION "$LETSENCRYPT_PRODUCTION"
   set_env_value .env SUPABASE_PUBLIC_URL "https://${API_DOMAIN}"
   set_env_value .env API_EXTERNAL_URL "https://${API_DOMAIN}"
   set_env_value .env SITE_URL "https://${STUDIO_DOMAIN}"
@@ -738,7 +742,7 @@ wait_for_letsencrypt() {
     rate_limit="$(acme_rate_limit_message)"
     if [ -n "$rate_limit" ]; then
       docker logs --tail 120 traefik || true
-      fail "Let's Encrypt rate limit encountered. ${rate_limit}. Preserve ACME storage, wait until the retry-after time, or use LETSENCRYPT_STAGING=true for test resets."
+      fail "Let's Encrypt rate limit encountered. ${rate_limit}. Wait until the retry-after time before using LETSENCRYPT_PRODUCTION=true again. Leave LETSENCRYPT_PRODUCTION=false for test resets."
     fi
 
     all_ok=true

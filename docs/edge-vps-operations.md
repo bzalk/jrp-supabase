@@ -54,9 +54,10 @@ The reset script writes a timestamped log and updates:
 ```
 
 Reset is intentionally a ground-up rebuild and discards Traefik/ACME certificate
-state. The UX should use `LETSENCRYPT_STAGING=true` for repeated test reset
-loops, and should surface production ACME retry-after messages instead of
-blindly retrying certificate issuance.
+state. The UX should leave `LETSENCRYPT_PRODUCTION=false` for repeated test
+reset loops, set it to `true` only for trusted production certificates, and
+surface production ACME retry-after messages instead of blindly retrying
+certificate issuance.
 
 The repair script writes logs under:
 

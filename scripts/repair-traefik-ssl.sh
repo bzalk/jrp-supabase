@@ -11,7 +11,9 @@ AUTH_DOMAIN="${AUTH_DOMAIN:-}"
 SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 LETSENCRYPT_CA_SERVER="${LETSENCRYPT_CA_SERVER:-}"
+LETSENCRYPT_CA_SERVER_OVERRIDE="$LETSENCRYPT_CA_SERVER"
 LETSENCRYPT_STAGING="${LETSENCRYPT_STAGING:-false}"
+LETSENCRYPT_PRODUCTION="${LETSENCRYPT_PRODUCTION:-}"
 VERIFY_DNS="${VERIFY_DNS:-true}"
 VERIFY_HTTPS="${VERIFY_HTTPS:-true}"
 ENABLE_UFW="${ENABLE_UFW:-true}"
@@ -209,8 +211,9 @@ configure_domains() {
     AUTH_DOMAIN="${AUTH_DOMAIN:-$(read_env_value "$env_file" AUTH_DOMAIN)}"
     SYNC_API_DOMAIN="${SYNC_API_DOMAIN:-$(read_env_value "$env_file" SYNC_API_DOMAIN)}"
     LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-$(read_env_value "$env_file" LETSENCRYPT_EMAIL)}"
-    LETSENCRYPT_CA_SERVER="${LETSENCRYPT_CA_SERVER:-$(read_env_value "$env_file" LETSENCRYPT_CA_SERVER)}"
   fi
+  LETSENCRYPT_PRODUCTION="${LETSENCRYPT_PRODUCTION:-false}"
+  LETSENCRYPT_CA_SERVER="$LETSENCRYPT_CA_SERVER_OVERRIDE"
 
   [ -n "$API_DOMAIN" ] || fail "API_DOMAIN is not set and BASE_DOMAIN was not provided"
   [ -n "$STUDIO_DOMAIN" ] || fail "STUDIO_DOMAIN is not set and BASE_DOMAIN was not provided"
@@ -218,14 +221,16 @@ configure_domains() {
   [ -n "$SYNC_API_DOMAIN" ] || fail "SYNC_API_DOMAIN is not set and BASE_DOMAIN was not provided"
   [ -n "$LETSENCRYPT_EMAIL" ] || fail "LETSENCRYPT_EMAIL is not set"
   if [ -z "$LETSENCRYPT_CA_SERVER" ]; then
-    if [ "$LETSENCRYPT_STAGING" = "true" ]; then
-      LETSENCRYPT_CA_SERVER="https://acme-staging-v02.api.letsencrypt.org/directory"
-    else
+    if [ "$LETSENCRYPT_PRODUCTION" = "true" ] && [ "$LETSENCRYPT_STAGING" != "true" ]; then
       LETSENCRYPT_CA_SERVER="https://acme-v02.api.letsencrypt.org/directory"
+    else
+      LETSENCRYPT_CA_SERVER="https://acme-staging-v02.api.letsencrypt.org/directory"
     fi
   fi
-  if [ "$LETSENCRYPT_STAGING" = "true" ]; then
+  if [ "$LETSENCRYPT_CA_SERVER" = "https://acme-staging-v02.api.letsencrypt.org/directory" ]; then
     log "Using Let's Encrypt staging CA for testing: ${LETSENCRYPT_CA_SERVER}"
+  else
+    log "Using Let's Encrypt production CA because LETSENCRYPT_PRODUCTION=${LETSENCRYPT_PRODUCTION}: ${LETSENCRYPT_CA_SERVER}"
   fi
 
   set_env_value "$env_file" API_DOMAIN "$API_DOMAIN"
@@ -234,6 +239,7 @@ configure_domains() {
   set_env_value "$env_file" SYNC_API_DOMAIN "$SYNC_API_DOMAIN"
   set_env_value "$env_file" LETSENCRYPT_EMAIL "$LETSENCRYPT_EMAIL"
   set_env_value "$env_file" LETSENCRYPT_CA_SERVER "$LETSENCRYPT_CA_SERVER"
+  set_env_value "$env_file" LETSENCRYPT_PRODUCTION "$LETSENCRYPT_PRODUCTION"
   set_env_value "$env_file" SUPABASE_PUBLIC_URL "https://${API_DOMAIN}"
   set_env_value "$env_file" API_EXTERNAL_URL "https://${API_DOMAIN}"
   set_env_value "$env_file" SITE_URL "https://${STUDIO_DOMAIN}"
@@ -444,7 +450,7 @@ write_status_report() {
   log "STUDIO_DOMAIN=${STUDIO_DOMAIN:-none}"
   log "AUTH_DOMAIN=${AUTH_DOMAIN:-none}"
   log "SYNC_API_DOMAIN=${SYNC_API_DOMAIN:-none}"
-  log "VERIFY_DNS=${VERIFY_DNS} VERIFY_HTTPS=${VERIFY_HTTPS} ENABLE_UFW=${ENABLE_UFW} UPDATE_REPO=${UPDATE_REPO} REPAIR_STATUS_ONLY=${REPAIR_STATUS_ONLY} LETSENCRYPT_CA_SERVER=${LETSENCRYPT_CA_SERVER}"
+  log "VERIFY_DNS=${VERIFY_DNS} VERIFY_HTTPS=${VERIFY_HTTPS} ENABLE_UFW=${ENABLE_UFW} UPDATE_REPO=${UPDATE_REPO} REPAIR_STATUS_ONLY=${REPAIR_STATUS_ONLY} LETSENCRYPT_PRODUCTION=${LETSENCRYPT_PRODUCTION} LETSENCRYPT_CA_SERVER=${LETSENCRYPT_CA_SERVER}"
   log "Server public IPs: $(server_public_ips | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
 
   run_status_command "Docker version" docker version
@@ -510,7 +516,7 @@ wait_for_letsencrypt() {
         log "${domain} $(certificate_subject "$domain") $(certificate_issuer "$domain")"
       done
       docker logs --tail 120 traefik || true
-      fail "Let's Encrypt rate limit encountered. ${rate_limit}. Preserve ACME storage, wait until the retry-after time, or use LETSENCRYPT_STAGING=true for test resets."
+      fail "Let's Encrypt rate limit encountered. ${rate_limit}. Wait until the retry-after time before using LETSENCRYPT_PRODUCTION=true again. Leave LETSENCRYPT_PRODUCTION=false for test repairs."
     fi
 
     all_ok=true

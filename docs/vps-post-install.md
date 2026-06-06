@@ -125,9 +125,10 @@ new token stored by the control plane.
 
 Because reset discards the ACME client state, repeated production resets can hit
 Let's Encrypt's exact-identifier issuance limit. For development or test reset
-loops, set `LETSENCRYPT_STAGING=true`. For production resets, the installer will
-preflight DNS and fail fast with the ACME retry-after details if Let's Encrypt
-rate limits are already active.
+loops, leave `LETSENCRYPT_PRODUCTION=false` so the scripts use Let's Encrypt
+staging. For production resets, explicitly set `LETSENCRYPT_PRODUCTION=true`;
+the installer will preflight DNS and fail fast with the ACME retry-after details
+if Let's Encrypt rate limits are already active.
 
 DNS records should point at the VPS before install:
 
@@ -147,8 +148,8 @@ export AUTH_DOMAIN="auth.example.com"
 export SYNC_API_DOMAIN="sync.example.com"
 export JRP_INSTALL_DIR="/opt/jrp-supabase"
 export SYNC_API_TOKEN="<control-plane-generated-token>"
-export LETSENCRYPT_STAGING="false"
-export LETSENCRYPT_CA_SERVER="https://acme-v02.api.letsencrypt.org/directory"
+export LETSENCRYPT_PRODUCTION="false"
+export LETSENCRYPT_CA_SERVER="https://acme-staging-v02.api.letsencrypt.org/directory"
 export START_STACK="true"
 export ENABLE_UFW="true"
 export FORCE_REGENERATE_SECRETS="false"
@@ -165,11 +166,11 @@ Let's Encrypt certificates. If DNS is intentionally not ready yet, set
 `VERIFY_DNS=false` and `VERIFY_HTTPS=false`, then rerun the installer after DNS
 is corrected.
 
-For repeated development/testing of the install or repair flow, set
-`LETSENCRYPT_STAGING=true`. Staging certificates are not trusted by browsers, but
-they avoid consuming production issuance limits while validating that DNS,
-Traefik, and HTTP-01 challenges are wired correctly. Use production only when
-the flow is stable.
+By default, install and repair use the Let's Encrypt staging CA. Staging
+certificates are not trusted by browsers, but they avoid consuming production
+issuance limits while validating that DNS, Traefik, and HTTP-01 challenges are
+wired correctly. Use `LETSENCRYPT_PRODUCTION=true` only when the flow is stable
+and the user intentionally wants trusted production certificates.
 
 If Traefik returns an ACME rate-limit error, the installer exits early and logs
 the exact Let’s Encrypt `retry after` timestamp. The UX should surface that line
@@ -231,8 +232,8 @@ export JRP_INSTALL_DIR="/opt/jrp-supabase"
 export UPDATE_REPO="false"
 export VERIFY_DNS="true"
 export VERIFY_HTTPS="true"
-export LETSENCRYPT_STAGING="false"
-export LETSENCRYPT_CA_SERVER="https://acme-v02.api.letsencrypt.org/directory"
+export LETSENCRYPT_PRODUCTION="false"
+export LETSENCRYPT_CA_SERVER="https://acme-staging-v02.api.letsencrypt.org/directory"
 export ENABLE_UFW="true"
 export REPAIR_STATUS_ONLY="false"
 ```
