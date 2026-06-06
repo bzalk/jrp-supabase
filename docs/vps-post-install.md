@@ -81,9 +81,8 @@ Authorization: Bearer <SYNC_API_TOKEN>
 Use this only when the VPS should be treated like a scratch install. It removes
 the local checkout, stack containers, project Docker volumes, local bind-mounted
 data under `/opt/jrp-supabase`, and generated local secrets, then downloads and
-runs the normal installer again. By default it preserves Traefik/ACME
-certificate volumes so repeated test resets do not burn through Let's Encrypt
-rate limits.
+runs the normal installer again. This is intentionally a ground-up rebuild,
+including the ACME certificate cache.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh \
@@ -111,13 +110,6 @@ curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/res
   | SYNC_API_TOKEN="<control-plane-generated-token>" bash -s -- example.com --confirm CONFIRM --dry-run
 ```
 
-To intentionally discard issued certificates as well:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/bzalk/jrp-supabase/main/scripts/reset-vps.sh \
-  | SYNC_API_TOKEN="<control-plane-generated-token>" RESET_CERTS=true bash -s -- example.com --confirm CONFIRM
-```
-
 GitHub is used only as a read-only source for downloading scripts and cloning
 the public repo into the VPS. The install/reset scripts do not push to GitHub.
 The reset and install scripts force their working directory to `/` before
@@ -131,10 +123,11 @@ When `RUN_INSTALL=true`, reset also requires a fresh `SYNC_API_TOKEN` before it
 removes the existing install. This keeps the reinstalled VPS aligned with the
 new token stored by the control plane.
 
-Do not set `RESET_CERTS=true` for ordinary retries. Let's Encrypt limits exact
-certificate names to a small number of issuances per rolling window, so deleting
-the ACME storage during repeated resets can leave Traefik serving its fallback
-self-signed certificate until the rate limit resets.
+Because reset discards the ACME client state, repeated production resets can hit
+Let's Encrypt's exact-identifier issuance limit. For development or test reset
+loops, set `LETSENCRYPT_STAGING=true`. For production resets, the installer will
+preflight DNS and fail fast with the ACME retry-after details if Let's Encrypt
+rate limits are already active.
 
 DNS records should point at the VPS before install:
 

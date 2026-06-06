@@ -12,7 +12,6 @@ RESET_LOG_FILE="${RESET_LOG_FILE:-/root/jrp-reset-vps-$(date -u +%Y%m%dT%H%M%SZ)
 RESET_LATEST_LOG_FILE="${RESET_LATEST_LOG_FILE:-/root/jrp-reset-vps-latest.log}"
 PRUNE_DOCKER_SYSTEM="${PRUNE_DOCKER_SYSTEM:-false}"
 RESET_DRY_RUN="${RESET_DRY_RUN:-false}"
-RESET_CERTS="${RESET_CERTS:-false}"
 
 KNOWN_CONTAINERS=(
   traefik
@@ -85,10 +84,6 @@ parse_args() {
         ;;
       --dry-run)
         RESET_DRY_RUN=true
-        shift
-        ;;
-      --reset-certs)
-        RESET_CERTS=true
         shift
         ;;
       --)
@@ -164,11 +159,6 @@ confirm_reset() {
 [jrp-reset]   CONFIRM_RESET=CONFIRM
 [jrp-reset]   CONFIRM=CONFIRM
 [jrp-reset]   --confirm CONFIRM
-[jrp-reset]
-[jrp-reset] By default, reset preserves Traefik/ACME certificate Docker volumes
-[jrp-reset] to avoid Let's Encrypt rate limits during repeated test resets.
-[jrp-reset] Use RESET_CERTS=true or --reset-certs only when you intentionally
-[jrp-reset] want to discard issued certificates.
 EOF
     exit 2
   fi
@@ -213,11 +203,11 @@ compose_down_if_possible() {
   cd "$INSTALL_DIR/docker"
   if [ -f docker-compose.yml ] && [ -f docker-compose.traefik.yml ]; then
     log "Stopping stack with Traefik compose files"
-    docker compose -f docker-compose.yml -f docker-compose.traefik.yml down --remove-orphans || true
+    docker compose -f docker-compose.yml -f docker-compose.traefik.yml down -v --remove-orphans || true
   fi
   if [ -f docker-compose.yml ]; then
     log "Stopping stack with base compose file"
-    docker compose -f docker-compose.yml down --remove-orphans || true
+    docker compose -f docker-compose.yml down -v --remove-orphans || true
   fi
 }
 
@@ -297,10 +287,6 @@ remove_project_docker_resources() {
   fi
 
   for volume in $(docker volume ls --format '{{.Name}}' | grep -E '^(supabase_|jrp-supabase_)' || true); do
-    if [ "$RESET_CERTS" != "true" ] && [[ "$volume" =~ (traefik-letsencrypt|nginx_letsencrypt|caddy) ]]; then
-      log "Preserving certificate volume ${volume} because RESET_CERTS=${RESET_CERTS}"
-      continue
-    fi
     log "Removing Docker volume ${volume}"
     docker volume rm -f "$volume" >/dev/null || true
   done
