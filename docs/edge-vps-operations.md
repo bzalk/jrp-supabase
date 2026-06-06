@@ -53,6 +53,11 @@ The reset script writes a timestamped log and updates:
 /root/jrp-reset-vps-latest.log
 ```
 
+Reset preserves Traefik/ACME certificate Docker volumes by default. Keep that
+default for ordinary retry/reset flows so repeated testing does not hit Let's
+Encrypt certificate issuance limits. Use `RESET_CERTS=true` only when the UX is
+explicitly asking to discard existing certificates.
+
 The repair script writes logs under:
 
 ```text
