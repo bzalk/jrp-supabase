@@ -288,6 +288,25 @@ def should_restore_managed_table_data(schema_name, table_name, config, options):
     return True
 
 
+def copy_migration_ledger(job_id, source_endpoint, target_endpoint):
+    try:
+        migrations = psql_json(source_endpoint, source_migrations_sql())
+    except RuntimeError as exc:
+        if "does not exist" in str(exc):
+            append_job_output(
+                job_id,
+                "Source migration ledger was not found; no migrations copied\n",
+            )
+            return
+        raise
+
+    append_job_output(
+        job_id,
+        f"Copying migration ledger with {len(migrations)} migration(s)\n",
+    )
+    run_logged_sql(job_id, target_endpoint, migration_ledger_restore_sql(migrations))
+
+
 def reset_database_copy(job_id, config, env_name, source_role, target_role, options):
     source_endpoint = reset_database_endpoint_from_config(config, source_role)
     target_endpoint = reset_database_endpoint_from_config(config, target_role)
@@ -510,6 +529,8 @@ def reset_database_copy(job_id, config, env_name, source_role, target_role, opti
             ),
             input_path=archive_path,
         )
+        if options.get("copy_migration_ledger"):
+            copy_migration_ledger(job_id, source_endpoint, target_endpoint)
     finally:
         if archive_path:
             Path(archive_path).unlink(missing_ok=True)

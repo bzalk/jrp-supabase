@@ -51,6 +51,7 @@ def parse_platform_to_local_options(body):
         "no_owner": parse_bool_body(body, "no_owner", True),
         "no_privileges": parse_bool_body(body, "no_privileges", True),
         "include_table_data": options["database_mode"] == "schema-and-data",
+        "copy_migration_ledger": parse_bool_body(body, "copy_migration_ledger", True),
         "clear_branches": parse_bool_body(body, "clear_branches", True),
         "create_main_branch": parse_bool_body(body, "create_main_branch", True),
         "schemas": body.get("schemas") or [],

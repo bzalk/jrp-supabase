@@ -241,6 +241,14 @@ class OperationsTests(unittest.TestCase):
                 return []
             if "from pg_publication" in sql:
                 return []
+            if "schema_migrations" in sql:
+                return [
+                    {
+                        "version": "202606030001",
+                        "name": "baseline",
+                        "statements": ["select 1;"],
+                    }
+                ]
             raise AssertionError(f"Unexpected SQL: {sql}")
 
         def fake_sql(job_id, endpoint, sql):
@@ -299,6 +307,7 @@ class OperationsTests(unittest.TestCase):
                         "no_owner": True,
                         "no_privileges": True,
                         "drop_target_schemas": True,
+                        "copy_migration_ledger": True,
                     },
                 )
             finally:
@@ -336,6 +345,12 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(restore_command[0], "bash")
         self.assertIn("SET transaction_timeout = 0", restore_command[2])
         self.assertIn("psql --single-transaction", restore_command[2])
+        migration_restore_sql = next(
+            call[2]
+            for call in calls
+            if call[0] == "sql" and "truncate table" in call[2] and "schema_migrations" in call[2]
+        )
+        self.assertIn("jsonb_array_elements", migration_restore_sql)
 
     def test_managed_storage_restore_only_allows_bucket_metadata(self):
         self.assertTrue(
@@ -1459,6 +1474,7 @@ class ImportPlanTests(unittest.TestCase):
         self.assertTrue(options["dry_run"])
         self.assertTrue(options["clear_branches"])
         self.assertTrue(options["create_main_branch"])
+        self.assertTrue(options["copy_migration_ledger"])
 
     def test_platform_to_local_rejects_schema_data_without_auth_data(self):
         with self.assertRaises(ValueError):
