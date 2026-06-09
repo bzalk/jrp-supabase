@@ -629,6 +629,8 @@ class BranchManagerTests(unittest.TestCase):
         self.assertIn("psql --single-transaction", command[2])
         self.assertNotIn("exec pg_restore", command[2])
         self.assertNotIn("--single-transaction", command[8:])
+        self.assertIn("--file", command)
+        self.assertEqual(command[command.index("--file") + 1], "-")
         self.assertIn("--use-list", command)
         self.assertIn("/data/restore.list", command)
 
@@ -648,6 +650,8 @@ class BranchManagerTests(unittest.TestCase):
         self.assertIn("psql --single-transaction", command[2])
         self.assertNotIn("--dbname", command)
         self.assertNotIn("--single-transaction", command[5:])
+        self.assertIn("--file", command)
+        self.assertEqual(command[command.index("--file") + 1], "-")
 
     def test_reset_database_endpoint_prefers_reset_user(self):
         endpoint = app.reset_database_endpoint_from_config(

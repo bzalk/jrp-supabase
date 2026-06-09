@@ -141,6 +141,8 @@ def pg_restore_command(
         command.append("--no-privileges")
     for schema_name in options.get("schemas") or []:
         command += ["--schema", schema_name]
+    if filter_unsupported_settings:
+        command += ["--file", "-"]
 
     if endpoint["kind"] == "url":
         if filter_unsupported_settings:
