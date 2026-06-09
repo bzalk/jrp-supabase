@@ -6,7 +6,7 @@ RUN apk add --no-cache \
   docker-cli \
   jq \
   perl \
-  postgresql16-client
+  postgresql17-client
 
 WORKDIR /app
 
