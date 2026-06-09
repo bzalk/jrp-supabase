@@ -1,12 +1,14 @@
 FROM python:3.12-alpine
 
+ARG POSTGRES_CLIENT_MAJOR=17
+
 RUN apk add --no-cache \
   bash \
   coreutils \
   docker-cli \
   jq \
   perl \
-  postgresql17-client
+  "postgresql${POSTGRES_CLIENT_MAJOR}-client"
 
 WORKDIR /app
 
