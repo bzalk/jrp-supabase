@@ -76,6 +76,13 @@ from pg_publication;
 """
 
 
+def reset_ensure_import_platform_schemas_sql():
+    return """
+set client_min_messages = warning;
+create schema if not exists extensions;
+"""
+
+
 def migration_ledger_export_sql():
     relation_literal = sql_literal(
         f"{BRANCH_MIGRATION_LEDGER_SCHEMA}.{BRANCH_MIGRATION_LEDGER_TABLE}"

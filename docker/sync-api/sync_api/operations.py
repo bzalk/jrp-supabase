@@ -429,6 +429,15 @@ def reset_database_copy(job_id, config, env_name, source_role, target_role, opti
             )
             append_job_output(
                 job_id,
+                "Ensuring local platform compatibility schemas exist before restore\n",
+            )
+            run_logged_sql(
+                job_id,
+                target_endpoint,
+                reset_ensure_import_platform_schemas_sql(),
+            )
+            append_job_output(
+                job_id,
                 "Dropping resettable app-owned objects in preserved app schemas before restore\n",
             )
             run_logged_sql(

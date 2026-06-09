@@ -216,7 +216,7 @@ class OperationsTests(unittest.TestCase):
             if "has_sequence_privilege" in sql:
                 return []
             if "from pg_namespace n" in sql:
-                return ["_realtime", "public"]
+                return ["_realtime", "extensions", "public"]
             if "from pg_extension" in sql:
                 return ["pgcrypto"]
             if "from pg_event_trigger" in sql:
@@ -292,12 +292,19 @@ class OperationsTests(unittest.TestCase):
                 app.write_filtered_restore_list = original_filter
 
         preclean_sql = next(call[2] for call in calls if call[0] == "sql")
+        schema_compat_sql = next(
+            call[2]
+            for call in calls
+            if call[0] == "sql" and "create schema if not exists extensions" in call[2]
+        )
         restore_command = next(call[1] for call in calls if call[0] == "command")
         filter_call = next(call for call in calls if call[0] == "filter")
 
         self.assertIn("pg_has_role(n.nspowner, 'MEMBER')", preclean_sql)
+        self.assertIn("create schema if not exists extensions", schema_compat_sql)
         self.assertEqual(filter_call[1], ["_realtime"])
         self.assertIn("_realtime", filter_call[2])
+        self.assertIn("extensions", filter_call[2])
         self.assertIn("pgcrypto", filter_call[3])
         self.assertIn("_realtime", filter_call[4])
         self.assertIn("pgsodium", filter_call[5])
