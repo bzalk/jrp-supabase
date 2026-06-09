@@ -724,6 +724,19 @@ certificate_issuer() {
     openssl x509 -noout -issuer 2>/dev/null || true
 }
 
+issuer_matches_requested_ca() {
+  local issuer="$1"
+
+  if ! grep -Eiq 'Let.s Encrypt|ISRG Root' <<<"$issuer"; then
+    return 1
+  fi
+  if [ "$LETSENCRYPT_PRODUCTION" = "true" ] && [ "$LETSENCRYPT_STAGING" != "true" ]; then
+    ! grep -Eiq '\(STAGING\)|STAGING' <<<"$issuer"
+    return
+  fi
+  return 0
+}
+
 acme_rate_limit_message() {
   docker logs --since 20m traefik 2>&1 |
     grep -E 'urn:ietf:params:acme:error:rateLimited|too many certificates|too many new orders|retry after [0-9]{4}-[0-9]{2}-[0-9]{2}' |
@@ -748,7 +761,7 @@ wait_for_letsencrypt() {
     all_ok=true
     for domain in "$API_DOMAIN" "$STUDIO_DOMAIN" "$AUTH_DOMAIN" "$SYNC_API_DOMAIN"; do
       issuer="$(certificate_issuer "$domain")"
-      if ! grep -Eiq 'Let.s Encrypt|ISRG Root|R[0-9]+' <<<"$issuer"; then
+      if ! issuer_matches_requested_ca "$issuer"; then
         all_ok=false
         break
       fi

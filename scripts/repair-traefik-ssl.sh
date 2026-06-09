@@ -392,6 +392,14 @@ recreate_traefik_routes() {
   remove_conflicting_route_containers
   wait_for_route_container_names_gone
   cleanup_stale_compose_temp_containers
+  if [ "$LETSENCRYPT_PRODUCTION" = "true" ] && [ "$LETSENCRYPT_STAGING" != "true" ]; then
+    log "Production certificates requested; clearing Traefik ACME cache so staging certs cannot be reused"
+    while IFS= read -r volume; do
+      [ -n "$volume" ] || continue
+      log "Removing Traefik ACME volume: ${volume}"
+      docker volume rm "$volume" >/dev/null || true
+    done < <(docker volume ls --format '{{.Name}}' | grep -E '(^|_)traefik-letsencrypt$' || true)
+  fi
   docker compose "${COMPOSE_FILES[@]}" up -d --build --force-recreate --no-deps "${ROUTED_SERVICES[@]}"
 }
 
@@ -411,6 +419,19 @@ certificate_subject() {
   local domain="$1"
   timeout 12 openssl s_client -connect "${domain}:443" -servername "$domain" </dev/null 2>/dev/null |
     openssl x509 -noout -subject 2>/dev/null || true
+}
+
+issuer_matches_requested_ca() {
+  local issuer="$1"
+
+  if ! grep -Eiq "Let.s Encrypt|ISRG Root" <<<"$issuer"; then
+    return 1
+  fi
+  if [ "$LETSENCRYPT_PRODUCTION" = "true" ] && [ "$LETSENCRYPT_STAGING" != "true" ]; then
+    ! grep -Eiq "\\(STAGING\\)|STAGING" <<<"$issuer"
+    return
+  fi
+  return 0
 }
 
 run_status_command() {
@@ -522,7 +543,7 @@ wait_for_letsencrypt() {
     all_ok=true
     for domain in "$API_DOMAIN" "$STUDIO_DOMAIN" "$AUTH_DOMAIN" "$SYNC_API_DOMAIN"; do
       issuer="$(certificate_issuer "$domain")"
-      if ! grep -Eiq "Let.s Encrypt|ISRG Root|R[0-9]+|E[0-9]+" <<<"$issuer"; then
+      if ! issuer_matches_requested_ca "$issuer"; then
         all_ok=false
         break
       fi
