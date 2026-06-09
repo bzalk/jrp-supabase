@@ -487,14 +487,20 @@ with table_triggers as (
     fn_n.nspname as function_schema,
     p.proname as function_name,
     pg_get_function_identity_arguments(p.oid) as function_identity_arguments,
-    pg_get_expr(t.tgqual, t.tgrelid, true) as when_condition,
+    substring(
+      trigger_def.definition
+      from '\\sWHEN\\s+\\((.*)\\)\\s+EXECUTE FUNCTION\\s'
+    ) as when_condition,
     obj_description(t.oid, 'pg_trigger') as comment,
-    pg_get_triggerdef(t.oid, true) as definition
+    trigger_def.definition as definition
   from pg_trigger t
   join pg_class c on c.oid = t.tgrelid
   join pg_namespace n on n.oid = c.relnamespace
   join pg_proc p on p.oid = t.tgfoid
   join pg_namespace fn_n on fn_n.oid = p.pronamespace
+  cross join lateral (
+    select pg_get_triggerdef(t.oid, true) as definition
+  ) trigger_def
   where n.nspname not in ('information_schema', 'pg_catalog')
     and n.nspname not like 'pg_toast%'
     and n.nspname not like 'pg_temp_%'

@@ -191,6 +191,14 @@ class AuditTests(unittest.TestCase):
 
 
 class OperationsTests(unittest.TestCase):
+    def test_database_triggers_sql_avoids_pg_get_expr_for_trigger_when(self):
+        sql = app.database_triggers_sql(include_internal=False)
+
+        self.assertNotIn("pg_get_expr(t.tgqual", sql)
+        self.assertIn("pg_get_triggerdef(t.oid, true)", sql)
+        self.assertIn("substring(", sql)
+        self.assertIn("WHEN", sql)
+
     def test_container_reset_preserves_non_droppable_platform_schemas(self):
         original_tmp_dir = app.RESET_TMP_DIR
         original_dump = app.run_logged_command_to_file
