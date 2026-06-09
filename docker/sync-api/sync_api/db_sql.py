@@ -77,9 +77,13 @@ from pg_publication;
 
 
 def reset_ensure_import_platform_schemas_sql():
-    return """
+    create_statements = "\n".join(
+        f"create schema if not exists {sql_identifier(schema_name)};"
+        for schema_name in sorted(SKIP_SOURCE_PLATFORM_SCHEMAS_FOR_HOSTED_RESTORE)
+    )
+    return f"""
 set client_min_messages = warning;
-create schema if not exists extensions;
+{create_statements}
 """
 
 
