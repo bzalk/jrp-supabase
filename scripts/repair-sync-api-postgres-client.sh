@@ -48,6 +48,9 @@ require_stack() {
 update_repo_if_requested() {
   if [ "$UPDATE_REPO" != "true" ]; then
     log "Skipping repo update because UPDATE_REPO=false"
+    if [ -d "$INSTALL_DIR/.git" ]; then
+      log "Current checkout: $(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || printf unknown)"
+    fi
     return
   fi
   command -v git >/dev/null 2>&1 || fail "git is required when UPDATE_REPO=true"
@@ -56,18 +59,38 @@ update_repo_if_requested() {
   git -C "$INSTALL_DIR" fetch origin "$REPO_BRANCH"
   git -C "$INSTALL_DIR" checkout "$REPO_BRANCH"
   git -C "$INSTALL_DIR" pull --ff-only origin "$REPO_BRANCH"
+  log "Updated checkout: $(git -C "$INSTALL_DIR" rev-parse --short HEAD)"
 }
 
 build_and_restart_sync_api() {
   cd "$INSTALL_DIR/docker"
   log "Building sync-api with PostgreSQL client major ${POSTGRES_CLIENT_MAJOR}"
   docker compose "${COMPOSE_FILES[@]}" build \
+    --no-cache \
     --pull \
     --build-arg "POSTGRES_CLIENT_MAJOR=${POSTGRES_CLIENT_MAJOR}" \
     sync-api
 
   log "Restarting sync-api only"
   docker compose "${COMPOSE_FILES[@]}" up -d --no-deps --force-recreate sync-api
+}
+
+verify_sync_api_code_current() {
+  cd "$INSTALL_DIR/docker"
+  local source_file="${INSTALL_DIR}/docker/sync-api/sync_api/db_core.py"
+  [ -f "$source_file" ] || fail "sync-api db_core.py not found in checkout"
+
+  local host_hash
+  local container_hash
+  host_hash="$(sha256sum "$source_file" | awk '{print $1}')"
+  container_hash="$(
+    docker compose "${COMPOSE_FILES[@]}" exec -T sync-api \
+      sha256sum /app/sync_api/db_core.py | awk '{print $1}'
+  )"
+
+  [ "$host_hash" = "$container_hash" ] ||
+    fail "running sync-api source hash ${container_hash} does not match checkout hash ${host_hash}"
+  log "Verified running sync-api code matches checkout"
 }
 
 verify_sync_api_client() {
@@ -89,6 +112,7 @@ main() {
   require_stack
   update_repo_if_requested
   build_and_restart_sync_api
+  verify_sync_api_code_current
   verify_sync_api_client
 }
 
