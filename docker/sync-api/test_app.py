@@ -304,6 +304,9 @@ class OperationsTests(unittest.TestCase):
         self.assertIn("--use-list", restore_command)
         self.assertNotIn("--clean", restore_command)
         self.assertIn("-c session_replication_role=replica", restore_command)
+        self.assertEqual(restore_command[0], "bash")
+        self.assertIn("SET transaction_timeout = 0", restore_command[2])
+        self.assertIn("psql --single-transaction", restore_command[2])
 
     def test_managed_storage_restore_only_allows_bucket_metadata(self):
         self.assertTrue(
@@ -603,6 +606,48 @@ class BranchManagerTests(unittest.TestCase):
         )
         self.assertIn("--use-list", command)
         self.assertIn("/data/restore.list", command)
+
+    def test_container_pg_restore_can_filter_unsupported_settings(self):
+        endpoint = {
+            "kind": "container",
+            "container": "supabase-db",
+            "user": "supabase_admin",
+            "database": "postgres",
+        }
+
+        command = app.pg_restore_command(
+            endpoint,
+            {"no_owner": True, "no_privileges": True},
+            clean=False,
+            use_list="/data/restore.list",
+            filter_unsupported_settings=True,
+        )
+
+        self.assertEqual(command[:3], ["bash", "-c", command[2]])
+        self.assertIn("pg_restore \"$@\"", command[2])
+        self.assertIn("SET transaction_timeout = 0", command[2])
+        self.assertIn("psql --single-transaction", command[2])
+        self.assertNotIn("exec pg_restore", command[2])
+        self.assertNotIn("--single-transaction", command[8:])
+        self.assertIn("--use-list", command)
+        self.assertIn("/data/restore.list", command)
+
+    def test_url_pg_restore_can_filter_unsupported_settings(self):
+        endpoint = {"kind": "url", "db_url": "postgres://user:pass@example.test/postgres"}
+
+        command = app.pg_restore_command(
+            endpoint,
+            {"no_owner": True, "no_privileges": True},
+            clean=False,
+            filter_unsupported_settings=True,
+        )
+
+        self.assertEqual(command[:3], ["bash", "-c", command[2]])
+        self.assertIn("pg_restore \"$@\"", command[2])
+        self.assertIn("SET transaction_timeout = 0", command[2])
+        self.assertIn("psql --single-transaction", command[2])
+        self.assertNotIn("--dbname", command)
+        self.assertNotIn("--single-transaction", command[5:])
 
     def test_reset_database_endpoint_prefers_reset_user(self):
         endpoint = app.reset_database_endpoint_from_config(

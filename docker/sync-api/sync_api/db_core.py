@@ -126,8 +126,11 @@ def pg_restore_command(
     clean=True,
     use_list=None,
     disable_trigger_checks=False,
+    filter_unsupported_settings=False,
 ):
-    command = ["pg_restore", "--exit-on-error", "--single-transaction"]
+    command = ["pg_restore", "--exit-on-error"]
+    if not filter_unsupported_settings:
+        command.append("--single-transaction")
     if clean:
         command += ["--clean", "--if-exists"]
     if use_list:
@@ -140,11 +143,50 @@ def pg_restore_command(
         command += ["--schema", schema_name]
 
     if endpoint["kind"] == "url":
+        if filter_unsupported_settings:
+            restore_args = command[1:]
+            script = (
+                "set -o pipefail; db_url=$1; shift; "
+                "pg_restore \"$@\" | "
+                "sed '/^SET transaction_timeout = 0;$/d' | "
+                "psql --single-transaction -X -v ON_ERROR_STOP=1 \"$db_url\""
+            )
+            return [
+                "bash",
+                "-c",
+                script,
+                "pg_restore-url",
+                endpoint["db_url"],
+                *restore_args,
+            ]
         command += ["--dbname", endpoint["db_url"]]
         return command
 
     restore_args = command[1:]
     pgoptions = "-c session_replication_role=replica" if disable_trigger_checks else ""
+    if filter_unsupported_settings:
+        script = (
+            "set -o pipefail; "
+            "container=$1; user=$2; database=$3; pgoptions=$4; shift 4; "
+            "password=$(docker exec \"$container\" sh -c 'printf %s \"$POSTGRES_PASSWORD\"'); "
+            "pg_restore \"$@\" | "
+            "sed '/^SET transaction_timeout = 0;$/d' | "
+            "PGPASSWORD=\"$password\" PGOPTIONS=\"$pgoptions\" "
+            "psql --single-transaction -X -v ON_ERROR_STOP=1 "
+            "-h \"$container\" -U \"$user\" -d \"$database\""
+        )
+        return [
+            "bash",
+            "-c",
+            script,
+            "pg_restore-container",
+            endpoint["container"],
+            endpoint["user"],
+            endpoint["database"],
+            pgoptions,
+            *restore_args,
+        ]
+
     script = (
         "container=$1; user=$2; database=$3; pgoptions=$4; shift 4; "
         "password=$(docker exec \"$container\" sh -c 'printf %s \"$POSTGRES_PASSWORD\"'); "
