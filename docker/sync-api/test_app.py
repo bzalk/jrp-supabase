@@ -1037,6 +1037,42 @@ class BranchManagerTests(unittest.TestCase):
         self.assertIn("jsonb_array_elements_text", sql)
         self.assertIn("20260529204637", sql)
 
+    def test_environment_migrations_includes_generated_timestamp(self):
+        original_psql_json = app.psql_json
+
+        def fake_psql_json(endpoint, sql):
+            if "schema_migrations" in sql:
+                return [
+                    {
+                        "version": "202606030001",
+                        "name": "baseline",
+                        "statements": ["select 1;"],
+                    }
+                ]
+            if "promoted_schema_migrations" in sql:
+                return []
+            raise AssertionError(f"Unexpected SQL: {sql}")
+
+        app.psql_json = fake_psql_json
+        try:
+            response = app.environment_migrations(
+                "dev",
+                {
+                    "source_db_url": "postgres://source.example/postgres",
+                    "target_db_url": "postgres://target.example/postgres",
+                    "source_env": "cloud",
+                    "target_env": "local",
+                },
+            )
+        finally:
+            app.psql_json = original_psql_json
+
+        self.assertEqual(response["environment"], "dev")
+        self.assertEqual(response["source_environment"], "cloud")
+        self.assertEqual(response["target_environment"], "local")
+        self.assertIsInstance(response["generated_at_ms"], int)
+        self.assertEqual(response["migrations"][0]["version"], "202606030001")
+
     def test_flattened_migration_sql_is_split_for_display(self):
         migration = {
             "version": "20260529204637",
