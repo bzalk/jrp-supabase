@@ -139,6 +139,16 @@ clear_branch_snapshots() {
   mkdir -p branches
 }
 
+ensure_db_config_volume() {
+  cd "$INSTALL_DIR/docker"
+  log "Ensuring db-config volume has required PostgreSQL custom config directories"
+  docker compose "${COMPOSE_FILES[@]}" run --rm --no-deps --entrypoint sh db -lc '
+    set -e
+    mkdir -p /etc/postgresql-custom/conf.d
+    chmod 755 /etc/postgresql-custom /etc/postgresql-custom/conf.d
+  '
+}
+
 wait_for_db_healthy() {
   local deadline health
   deadline=$((SECONDS + 240))
@@ -255,6 +265,7 @@ restart_stack() {
 
   log "Pulling ${POSTGRES_IMAGE}"
   docker pull "$POSTGRES_IMAGE"
+  ensure_db_config_volume
 
   log "Starting supabase-db with ${POSTGRES_IMAGE}"
   docker compose "${COMPOSE_FILES[@]}" up -d --force-recreate db
