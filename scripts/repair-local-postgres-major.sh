@@ -141,23 +141,41 @@ clear_branch_snapshots() {
 
 ensure_db_config_volume() {
   cd "$INSTALL_DIR/docker"
-  log "Ensuring db-config volume has required PostgreSQL custom config directories"
-  docker compose "${COMPOSE_FILES[@]}" run --rm --no-deps --entrypoint sh db -lc '
+  log "Ensuring db-config volume has PostgreSQL custom config defaults"
+  local seed_dir seed_container
+  seed_dir="$(mktemp -d)"
+  seed_container="jrp-pg-config-seed-${REPAIR_RUN_ID}"
+  docker create --name "$seed_container" "$POSTGRES_IMAGE" >/dev/null
+  docker cp "${seed_container}:/etc/postgresql-custom/." "$seed_dir"/
+  docker rm "$seed_container" >/dev/null
+  docker compose "${COMPOSE_FILES[@]}" run --rm --no-deps \
+    -v "${seed_dir}:/tmp/postgresql-custom-seed:ro" \
+    --entrypoint sh db -lc '
     set -e
+    cp -a /tmp/postgresql-custom-seed/. /etc/postgresql-custom/
     mkdir -p /etc/postgresql-custom/conf.d
-    chmod 755 /etc/postgresql-custom /etc/postgresql-custom/conf.d
+    chmod -R a+rX /etc/postgresql-custom
   '
+  rm -rf "$seed_dir"
 }
 
 wait_for_db_healthy() {
-  local deadline health
+  local deadline health last_diag
   deadline=$((SECONDS + 240))
+  last_diag=0
   while [ "$SECONDS" -lt "$deadline" ]; do
     health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' supabase-db 2>/dev/null || true)"
     if [ "$health" = "healthy" ]; then
       return
     fi
     log "Waiting for supabase-db to become healthy (${health:-not-created})"
+    if [ "$health" = "unhealthy" ] && [ $((SECONDS - last_diag)) -ge 30 ]; then
+      last_diag="$SECONDS"
+      log "supabase-db healthcheck diagnostics"
+      docker inspect -f '{{range .State.Health.Log}}{{println .End "exit=" .ExitCode}}{{print .Output}}{{end}}' supabase-db 2>/dev/null || true
+      log "supabase-db recent logs"
+      docker logs --tail 80 supabase-db 2>&1 || true
+    fi
     sleep 3
   done
   docker compose "${COMPOSE_FILES[@]}" ps -a || true
