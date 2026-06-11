@@ -393,6 +393,22 @@ class OperationsTests(unittest.TestCase):
                 {},
             )
         )
+        self.assertFalse(
+            app.should_restore_managed_table_data(
+                "realtime",
+                "messages_2026_06_09",
+                {},
+                {},
+            )
+        )
+        self.assertFalse(
+            app.should_restore_managed_table_data(
+                "_realtime",
+                "schema_migrations",
+                {},
+                {},
+            )
+        )
 
     def test_restore_filter_skips_storage_internal_table_data(self):
         original_archive_list = app.restore_archive_list
@@ -420,6 +436,34 @@ class OperationsTests(unittest.TestCase):
         self.assertIn("1; 123 456 TABLE DATA storage buckets postgres", output)
         self.assertIn(";2; 123 456 TABLE DATA storage objects postgres", output)
         self.assertIn(";3; 123 456 TABLE DATA storage s3_multipart_uploads postgres", output)
+        self.assertIn("4; 123 456 TABLE DATA public menu_items postgres", output)
+
+    def test_restore_filter_skips_realtime_internal_table_data(self):
+        original_archive_list = app.restore_archive_list
+        with tempfile.TemporaryDirectory() as tmpdir:
+            list_path = Path(tmpdir) / "restore.list"
+            app.restore_archive_list = lambda archive_path: [
+                "1; 123 456 TABLE DATA realtime messages_2026_06_09 postgres",
+                "2; 123 456 TABLE DATA _realtime schema_migrations postgres",
+                "3; 123 456 TABLE DATA auth users postgres",
+                "4; 123 456 TABLE DATA public menu_items postgres",
+            ]
+            try:
+                removed = app.write_filtered_restore_list(
+                    "archive.dump",
+                    list_path,
+                    managed_schemas=["realtime", "_realtime", "auth"],
+                    managed_table_data_keys={("auth", "users")},
+                )
+            finally:
+                app.restore_archive_list = original_archive_list
+
+            output = list_path.read_text()
+
+        self.assertEqual(removed, 2)
+        self.assertIn(";1; 123 456 TABLE DATA realtime messages_2026_06_09 postgres", output)
+        self.assertIn(";2; 123 456 TABLE DATA _realtime schema_migrations postgres", output)
+        self.assertIn("3; 123 456 TABLE DATA auth users postgres", output)
         self.assertIn("4; 123 456 TABLE DATA public menu_items postgres", output)
 
     def test_restore_filter_skips_platform_extensions(self):

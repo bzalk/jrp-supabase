@@ -285,6 +285,8 @@ def should_restore_managed_table_data(schema_name, table_name, config, options):
             and config.get("sync_storage_buckets", True) is not False
             and options.get("include_storage_bucket_metadata", True) is not False
         )
+    if schema_name in {"realtime", "_realtime"}:
+        return False
     return True
 
 
