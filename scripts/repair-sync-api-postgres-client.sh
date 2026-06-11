@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 INSTALL_DIR="${JRP_INSTALL_DIR:-/opt/jrp-supabase}"
 REPO_BRANCH="${JRP_REPO_BRANCH:-main}"
-UPDATE_REPO="${UPDATE_REPO:-false}"
+UPDATE_REPO="${UPDATE_REPO:-true}"
 POSTGRES_CLIENT_MAJOR="${POSTGRES_CLIENT_MAJOR:-${1:-17}}"
 REPAIR_LOG_DIR="${JRP_REPAIR_LOG_DIR:-${INSTALL_DIR}/docker/repair-logs}"
 REPAIR_RUN_ID="${JRP_REPAIR_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
@@ -77,20 +77,27 @@ build_and_restart_sync_api() {
 
 verify_sync_api_code_current() {
   cd "$INSTALL_DIR/docker"
-  local source_file="${INSTALL_DIR}/docker/sync-api/sync_api/db_core.py"
-  [ -f "$source_file" ] || fail "sync-api db_core.py not found in checkout"
-
+  local relative_files=(
+    "sync_api/db_core.py"
+    "sync_api/operations.py"
+    "sync_api/restore_filter.py"
+  )
+  local relative_file
+  local source_file
   local host_hash
   local container_hash
-  host_hash="$(sha256sum "$source_file" | awk '{print $1}')"
-  container_hash="$(
-    docker compose "${COMPOSE_FILES[@]}" exec -T sync-api \
-      sha256sum /app/sync_api/db_core.py | awk '{print $1}'
-  )"
-
-  [ "$host_hash" = "$container_hash" ] ||
-    fail "running sync-api source hash ${container_hash} does not match checkout hash ${host_hash}"
-  log "Verified running sync-api code matches checkout"
+  for relative_file in "${relative_files[@]}"; do
+    source_file="${INSTALL_DIR}/docker/sync-api/${relative_file}"
+    [ -f "$source_file" ] || fail "sync-api ${relative_file} not found in checkout"
+    host_hash="$(sha256sum "$source_file" | awk '{print $1}')"
+    container_hash="$(
+      docker compose "${COMPOSE_FILES[@]}" exec -T sync-api \
+        sha256sum "/app/${relative_file}" | awk '{print $1}'
+    )"
+    [ "$host_hash" = "$container_hash" ] ||
+      fail "running sync-api ${relative_file} hash ${container_hash} does not match checkout hash ${host_hash}"
+  done
+  log "Verified running sync-api import code matches checkout"
 }
 
 verify_sync_api_client() {
