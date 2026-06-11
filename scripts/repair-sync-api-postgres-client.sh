@@ -81,9 +81,11 @@ build_and_restart_sync_api() {
 verify_sync_api_code_current() {
   cd "$INSTALL_DIR/docker"
   local relative_files=(
+    "app.py"
     "sync_api/db_core.py"
     "sync_api/operations.py"
     "sync_api/restore_filter.py"
+    "sync_api/server.py"
   )
   local relative_file
   local source_file

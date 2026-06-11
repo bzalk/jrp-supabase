@@ -1516,6 +1516,40 @@ class ImportPlanTests(unittest.TestCase):
         self.assertEqual(response["projects"], [{"ref": "project-ref"}])
         self.assertEqual(calls, [("supabase-token", "/v1/projects?organization_id=org_123")])
 
+    def test_import_routes_can_inject_supabase_access_token_from_header(self):
+        class Handler:
+            class Headers:
+                def get(self, key):
+                    if key == "X-Supabase-Access-Token":
+                        return "header-token"
+                    return None
+
+            headers = Headers()
+
+        body = app.body_with_supabase_access_token(
+            Handler(),
+            {"source": {"type": "platform"}},
+        )
+
+        self.assertEqual(body["access_token"], "header-token")
+
+    def test_import_routes_do_not_override_body_supabase_access_token(self):
+        class Handler:
+            class Headers:
+                def get(self, key):
+                    if key == "X-Supabase-Access-Token":
+                        return "header-token"
+                    return None
+
+            headers = Headers()
+
+        body = app.body_with_supabase_access_token(
+            Handler(),
+            {"access_token": "body-token"},
+        )
+
+        self.assertEqual(body["access_token"], "body-token")
+
     def test_platform_to_local_requires_confirmation(self):
         with self.assertRaises(ValueError):
             app.parse_platform_to_local_options(

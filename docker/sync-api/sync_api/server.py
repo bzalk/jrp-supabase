@@ -65,6 +65,14 @@ def list_repair_logs():
     return {"logs": entries, "latest": latest}
 
 
+def body_with_supabase_access_token(handler, body):
+    body = dict(body or {})
+    token = supabase_access_token_from_handler(handler)
+    if token and not body.get("access_token"):
+        body["access_token"] = token
+    return body
+
+
 def read_repair_log(name):
     path = _safe_repair_log_path(name)
     return path.read_text(encoding="utf-8", errors="replace")
@@ -578,10 +586,14 @@ class SyncApiHandler(BaseHTTPRequestHandler):
             return
 
         if parts == ["v1", "imports", "plan"]:
+            body = body_with_supabase_access_token(self, body)
+            self._request_body_for_log = body
             self.send_json(200, build_import_plan(body))
             return
 
         if parts == ["v1", "imports", "platform-to-local"]:
+            body = body_with_supabase_access_token(self, body)
+            self._request_body_for_log = body
             job = start_platform_to_local_import(body)
             self.send_json(202, {"job": job})
             return
