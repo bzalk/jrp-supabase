@@ -55,11 +55,14 @@ update_repo_if_requested() {
   fi
   command -v git >/dev/null 2>&1 || fail "git is required when UPDATE_REPO=true"
   [ -d "$INSTALL_DIR/.git" ] || fail "install directory is not a git checkout: ${INSTALL_DIR}"
-  log "Updating read-only repo checkout from origin/${REPO_BRANCH}"
+  log "Updating sync-api source from origin/${REPO_BRANCH}"
   git -C "$INSTALL_DIR" fetch origin "$REPO_BRANCH"
-  git -C "$INSTALL_DIR" checkout "$REPO_BRANCH"
-  git -C "$INSTALL_DIR" pull --ff-only origin "$REPO_BRANCH"
-  log "Updated checkout: $(git -C "$INSTALL_DIR" rev-parse --short HEAD)"
+  git -C "$INSTALL_DIR" checkout "$REPO_BRANCH" -- docker/sync-api
+  git -C "$INSTALL_DIR" checkout "origin/${REPO_BRANCH}" -- docker/sync-api
+  log "Updated sync-api source from origin/${REPO_BRANCH}: $(git -C "$INSTALL_DIR" rev-parse --short "origin/${REPO_BRANCH}")"
+  if ! git -C "$INSTALL_DIR" diff --quiet -- docker/docker-compose.yml; then
+    log "Preserved local docker/docker-compose.yml modifications"
+  fi
 }
 
 build_and_restart_sync_api() {
