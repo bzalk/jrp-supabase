@@ -39,6 +39,14 @@ def parse_table_data_restore_line(line):
     return match.group(1), match.group(2)
 
 
+def restore_list_line_is_realtime_internal_table_data(line):
+    table_data_key = parse_table_data_restore_line(line)
+    if not table_data_key:
+        return False
+    schema_name, table_name = (unquote_restore_name(item) for item in table_data_key)
+    return schema_name in {"realtime", "_realtime"}
+
+
 def parse_sequence_set_restore_line(line):
     match = re.search(r"\bSEQUENCE SET\s+(\S+)\s+(\S+)\s", line)
     if not match:
@@ -161,7 +169,9 @@ def write_filtered_restore_list(
         table_data_key = parse_table_data_restore_line(line)
         if table_data_key:
             schema_name = table_data_key[0]
-            if schema_name in managed_schemas:
+            if restore_list_line_is_realtime_internal_table_data(line):
+                remove = True
+            elif schema_name in managed_schemas:
                 remove = table_data_key not in managed_table_data_keys
             elif schema_name in preserved_schemas and schema_name != "public":
                 remove = True
