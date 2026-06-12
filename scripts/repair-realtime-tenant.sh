@@ -41,6 +41,27 @@ require_stack() {
   docker compose version >/dev/null
 }
 
+ensure_db_healthy() {
+  cd "$DOCKER_DIR"
+  log "Ensuring Supabase database is running"
+  docker compose "${COMPOSE_FILES[@]}" up -d --no-deps db
+
+  local status
+  local attempt
+  for attempt in $(seq 1 60); do
+    status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' supabase-db 2>/dev/null || true)"
+    if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+      log "Supabase database status: ${status}"
+      return
+    fi
+    log "Waiting for supabase-db to become healthy (${status:-unknown})"
+    sleep 3
+  done
+
+  docker logs --tail 120 supabase-db 2>&1 || true
+  fail "Timed out waiting for supabase-db to become healthy"
+}
+
 read_env_value() {
   local key="$1"
   awk -F= -v key="$key" '
@@ -109,31 +130,30 @@ $$;
 SQL
 }
 
-realtime_tenants_table_exists() {
-  [ "$(db_psql -Atc "select case when to_regclass('_realtime.tenants') is null then 'false' else 'true' end")" = "true" ]
-}
-
-run_realtime_migrations_if_needed() {
-  cd "$DOCKER_DIR"
-  if realtime_tenants_table_exists; then
-    log "Realtime tenants table already exists; skipping migrations and running seed only"
-    return
-  fi
-
-  log "Running Realtime migrations"
-  docker compose "${COMPOSE_FILES[@]}" run --rm --no-deps \
-    --entrypoint /app/bin/migrate "$REALTIME_SERVICE"
+reset_realtime_metadata_schema() {
+  log "Resetting _realtime metadata schema"
+  db_psql <<'SQL'
+drop schema if exists _realtime cascade;
+create schema _realtime authorization supabase_admin;
+grant usage, create on schema _realtime to supabase_admin;
+SQL
 }
 
 run_realtime_seed() {
   cd "$DOCKER_DIR"
-  log "Stopping Realtime service before one-off seed"
+  log "Stopping Realtime service before metadata reset"
   docker compose "${COMPOSE_FILES[@]}" stop "$REALTIME_SERVICE" || true
 
   local seed_code
   set +e
-  run_realtime_migrations_if_needed
+  reset_realtime_metadata_schema
   seed_code=$?
+  if [ "$seed_code" -eq 0 ]; then
+    log "Running Realtime migrations on clean metadata schema"
+    docker compose "${COMPOSE_FILES[@]}" run --rm --no-deps \
+      --entrypoint /app/bin/migrate "$REALTIME_SERVICE"
+    seed_code=$?
+  fi
   if [ "$seed_code" -eq 0 ]; then
     log "Running Realtime self-host seed for tenant ${REALTIME_TENANT_ID}"
     docker compose "${COMPOSE_FILES[@]}" run --rm --no-deps \
@@ -174,6 +194,7 @@ wait_for_realtime_health() {
 main() {
   init_logging
   require_stack
+  ensure_db_healthy
   log "Repairing Realtime tenant ${REALTIME_TENANT_ID}"
   print_realtime_metadata
   ensure_publication_exists
