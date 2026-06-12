@@ -121,7 +121,8 @@ run_realtime_migrations_if_needed() {
   fi
 
   log "Running Realtime migrations"
-  docker compose "${COMPOSE_FILES[@]}" run --rm --no-deps "$REALTIME_SERVICE" /app/bin/migrate
+  docker compose "${COMPOSE_FILES[@]}" run --rm --no-deps \
+    --entrypoint /app/bin/migrate "$REALTIME_SERVICE"
 }
 
 run_realtime_seed() {
@@ -135,8 +136,9 @@ run_realtime_seed() {
   seed_code=$?
   if [ "$seed_code" -eq 0 ]; then
     log "Running Realtime self-host seed for tenant ${REALTIME_TENANT_ID}"
-    docker compose "${COMPOSE_FILES[@]}" run --rm --no-deps "$REALTIME_SERVICE" \
-      /app/bin/realtime eval 'Realtime.Release.seeds(Realtime.Repo)'
+    docker compose "${COMPOSE_FILES[@]}" run --rm --no-deps \
+      --entrypoint /app/bin/realtime "$REALTIME_SERVICE" \
+      eval 'Realtime.Release.seeds(Realtime.Repo)'
     seed_code=$?
   fi
   set -e
