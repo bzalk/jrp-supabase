@@ -21,6 +21,7 @@ from .operations import reset_database_copy, reset_edge_functions
 
 PLATFORM_TO_LOCAL_CONFIRMATION = "CONFIRM"
 PUBLIC_SCHEMA_CLIENT_GRANTS_SQL = """
+-- Public API roles
 grant usage on schema public
 to anon, authenticated, service_role;
 
@@ -32,6 +33,21 @@ to anon, authenticated, service_role;
 
 grant execute on all functions in schema public
 to anon, authenticated, service_role;
+
+-- Auth service role
+grant usage on schema auth
+to supabase_auth_admin;
+
+grant all privileges on all tables in schema auth
+to supabase_auth_admin;
+
+grant all privileges on all sequences in schema auth
+to supabase_auth_admin;
+
+grant execute on all functions in schema auth
+to supabase_auth_admin;
+
+alter role supabase_auth_admin set search_path = auth, public;
 """
 POSTGREST_SCHEMA_RELOAD_SQL = "NOTIFY pgrst, 'reload schema';\n"
 
