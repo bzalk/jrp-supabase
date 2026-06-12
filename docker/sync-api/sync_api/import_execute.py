@@ -20,6 +20,19 @@ from .operations import reset_database_copy, reset_edge_functions
 
 
 PLATFORM_TO_LOCAL_CONFIRMATION = "CONFIRM"
+PUBLIC_SCHEMA_CLIENT_GRANTS_SQL = """
+grant usage on schema public
+to anon, authenticated, service_role;
+
+grant all privileges on all tables in schema public
+to anon, authenticated, service_role;
+
+grant all privileges on all sequences in schema public
+to anon, authenticated, service_role;
+
+grant execute on all functions in schema public
+to anon, authenticated, service_role;
+"""
 POSTGREST_SCHEMA_RELOAD_SQL = "NOTIFY pgrst, 'reload schema';\n"
 
 
@@ -165,6 +178,18 @@ def reload_local_postgrest_schema_cache(job_id, config):
         )
 
 
+def apply_local_public_schema_client_grants(job_id, config):
+    endpoint = reset_database_endpoint_from_config(config, "target")
+    if endpoint.get("kind") != "container":
+        append_job_output(
+            job_id,
+            "Skipping local public schema client grants for URL target database\n",
+        )
+        return
+    append_job_output(job_id, "Applying local public schema client grants\n")
+    run_logged_sql(job_id, endpoint, PUBLIC_SCHEMA_CLIENT_GRANTS_SQL)
+
+
 def run_platform_to_local_job(job_id, body):
     options = parse_platform_to_local_options(body)
     config, source, target = platform_to_local_config(body)
@@ -245,6 +270,7 @@ def run_platform_to_local_job(job_id, body):
             progress_details,
         )
         reset_database_copy(job_id, config, config["name"], "source", "target", options)
+        apply_local_public_schema_client_grants(job_id, config)
         reload_local_postgrest_schema_cache(job_id, config)
         update_job_progress(job_id, "database_imported", 75, "Database import completed")
         if options["clear_branches"]:
