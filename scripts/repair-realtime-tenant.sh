@@ -109,13 +109,27 @@ $$;
 SQL
 }
 
+realtime_tenants_table_exists() {
+  [ "$(db_psql -Atc "select case when to_regclass('_realtime.tenants') is null then 'false' else 'true' end")" = "true" ]
+}
+
+run_realtime_migrations_if_needed() {
+  cd "$DOCKER_DIR"
+  if realtime_tenants_table_exists; then
+    log "Realtime tenants table already exists; skipping migrations and running seed only"
+    return
+  fi
+
+  log "Running Realtime migrations"
+  docker compose "${COMPOSE_FILES[@]}" exec -T "$REALTIME_SERVICE" /app/bin/migrate
+}
+
 run_realtime_seed() {
   cd "$DOCKER_DIR"
   log "Starting Realtime service"
   docker compose "${COMPOSE_FILES[@]}" up -d --no-deps "$REALTIME_SERVICE"
 
-  log "Running Realtime migrations"
-  docker compose "${COMPOSE_FILES[@]}" exec -T "$REALTIME_SERVICE" /app/bin/migrate
+  run_realtime_migrations_if_needed
 
   log "Running Realtime self-host seed for tenant ${REALTIME_TENANT_ID}"
   docker compose "${COMPOSE_FILES[@]}" exec -T "$REALTIME_SERVICE" \

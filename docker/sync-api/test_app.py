@@ -409,6 +409,24 @@ class OperationsTests(unittest.TestCase):
                 {},
             )
         )
+        self.assertFalse(
+            app.should_truncate_managed_table_data(
+                "_realtime",
+                "schema_migrations",
+            )
+        )
+        self.assertFalse(
+            app.should_truncate_managed_table_data(
+                "realtime",
+                "messages_2026_06_12",
+            )
+        )
+        self.assertTrue(
+            app.should_truncate_managed_table_data(
+                "auth",
+                "users",
+            )
+        )
 
     def test_restore_filter_skips_storage_internal_table_data(self):
         original_archive_list = app.restore_archive_list

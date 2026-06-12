@@ -290,6 +290,10 @@ def should_restore_managed_table_data(schema_name, table_name, config, options):
     return True
 
 
+def should_truncate_managed_table_data(schema_name, table_name):
+    return schema_name not in {"realtime", "_realtime"}
+
+
 def copy_migration_ledger(job_id, source_endpoint, target_endpoint):
     try:
         migrations = psql_json(source_endpoint, source_migrations_sql())
@@ -380,6 +384,7 @@ def reset_database_copy(job_id, config, env_name, source_role, target_role, opti
                 (item["schema"], item["table"])
                 for item in managed_table_privileges
                 if item.get("can_insert") and item.get("can_truncate")
+                and should_truncate_managed_table_data(item["schema"], item["table"])
             }
             restore_managed_table_data = {
                 table_key
