@@ -1660,6 +1660,7 @@ class ImportPlanTests(unittest.TestCase):
     def test_platform_to_local_recreates_main_branch_after_database_import(self):
         original_build_plan = app.build_import_plan
         original_reset_database = app.reset_database_copy
+        original_reload_schema = app.reload_local_postgrest_schema_cache
         original_reset_edge = app.reset_edge_functions
         original_clear_branches = app.clear_branch_registry
         original_snapshot = app.snapshot_branch_state
@@ -1677,6 +1678,9 @@ class ImportPlanTests(unittest.TestCase):
 
         def fake_reset_database(job_id, config, env_name, source_role, target_role, options):
             calls.append("database")
+
+        def fake_reload_schema(job_id, config):
+            calls.append("reload-postgrest")
 
         def fake_reset_edge(*args, **kwargs):
             calls.append("edge")
@@ -1720,6 +1724,7 @@ class ImportPlanTests(unittest.TestCase):
 
         app.build_import_plan = fake_build_plan
         app.reset_database_copy = fake_reset_database
+        app.reload_local_postgrest_schema_cache = fake_reload_schema
         app.reset_edge_functions = fake_reset_edge
         app.clear_branch_registry = fake_clear_branches
         app.snapshot_branch_state = fake_snapshot
@@ -1741,6 +1746,7 @@ class ImportPlanTests(unittest.TestCase):
         finally:
             app.build_import_plan = original_build_plan
             app.reset_database_copy = original_reset_database
+            app.reload_local_postgrest_schema_cache = original_reload_schema
             app.reset_edge_functions = original_reset_edge
             app.clear_branch_registry = original_clear_branches
             app.snapshot_branch_state = original_snapshot
@@ -1751,6 +1757,7 @@ class ImportPlanTests(unittest.TestCase):
             [
                 "plan",
                 "database",
+                "reload-postgrest",
                 "branches",
                 (
                     "snapshot",

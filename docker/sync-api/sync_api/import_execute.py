@@ -1,5 +1,5 @@
 from .settings import *
-from .audit import append_job_output, start_job, update_job_progress
+from .audit import append_job_output, run_logged_sql, start_job, update_job_progress
 from .branch_core import (
     clear_branch_registry,
     validate_branch_name,
@@ -8,6 +8,7 @@ from .branch_core import (
 )
 from .branch_snapshot import snapshot_branch_state
 from .http_utils import parse_bool_body
+from .db import reset_database_endpoint_from_config
 from .import_plan import (
     build_import_plan,
     import_default_options,
@@ -19,6 +20,7 @@ from .operations import reset_database_copy, reset_edge_functions
 
 
 PLATFORM_TO_LOCAL_CONFIRMATION = "CONFIRM"
+POSTGREST_SCHEMA_RELOAD_SQL = "NOTIFY pgrst, 'reload schema';\n"
 
 
 def parse_platform_to_local_options(body):
@@ -145,6 +147,24 @@ def import_progress_details(plan, options):
     }
 
 
+def reload_local_postgrest_schema_cache(job_id, config):
+    try:
+        endpoint = reset_database_endpoint_from_config(config, "target")
+        if endpoint.get("kind") != "container":
+            append_job_output(
+                job_id,
+                "Skipping local PostgREST schema cache reload for URL target database\n",
+            )
+            return
+        append_job_output(job_id, "Reloading local PostgREST schema cache\n")
+        run_logged_sql(job_id, endpoint, POSTGREST_SCHEMA_RELOAD_SQL)
+    except Exception as exc:
+        append_job_output(
+            job_id,
+            f"Warning: local PostgREST schema cache reload failed: {exc}\n",
+        )
+
+
 def run_platform_to_local_job(job_id, body):
     options = parse_platform_to_local_options(body)
     config, source, target = platform_to_local_config(body)
@@ -225,6 +245,7 @@ def run_platform_to_local_job(job_id, body):
             progress_details,
         )
         reset_database_copy(job_id, config, config["name"], "source", "target", options)
+        reload_local_postgrest_schema_cache(job_id, config)
         update_job_progress(job_id, "database_imported", 75, "Database import completed")
         if options["clear_branches"]:
             removed_count = clear_branch_registry()
