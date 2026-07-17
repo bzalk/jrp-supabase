@@ -103,6 +103,13 @@ def parse_publication_comment_restore_line(line):
     return unquote_restore_name(match.group(1).split()[0])
 
 
+def restore_list_line_is_protected_publication_member(line, publication_names):
+    if "PUBLICATION TABLE" not in line:
+        return False
+    padded = f" {line} "
+    return any(f" {publication_name} " in padded for publication_name in publication_names)
+
+
 def write_filtered_restore_list(
     archive_path,
     list_path,
@@ -123,6 +130,7 @@ def write_filtered_restore_list(
     existing_extensions = set(existing_extensions or [])
     existing_event_triggers = set(existing_event_triggers or [])
     existing_publications = set(existing_publications or [])
+    protected_publications = existing_publications | {"supabase_realtime"}
     skipped_source_schemas = set(skipped_source_schemas or [])
     skipped_source_extensions = set(skipped_source_extensions or [])
     kept = []
@@ -154,16 +162,12 @@ def write_filtered_restore_list(
         ):
             remove = True
         publication_name = parse_publication_restore_line(line)
-        if publication_name and (
-            publication_name in existing_publications
-            or publication_name == "supabase_realtime"
-        ):
+        if publication_name and publication_name in protected_publications:
             remove = True
         publication_comment_name = parse_publication_comment_restore_line(line)
-        if publication_comment_name and (
-            publication_comment_name in existing_publications
-            or publication_comment_name == "supabase_realtime"
-        ):
+        if publication_comment_name and publication_comment_name in protected_publications:
+            remove = True
+        if restore_list_line_is_protected_publication_member(line, protected_publications):
             remove = True
 
         table_data_key = parse_table_data_restore_line(line)

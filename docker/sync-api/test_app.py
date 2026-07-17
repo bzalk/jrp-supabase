@@ -12,6 +12,24 @@ import app
 
 
 class EdgeFunctionPackagingTests(unittest.TestCase):
+    def test_publication_table_restore_line_detects_protected_publication(self):
+        line = "1234; 0 0 PUBLICATION TABLE public orders supabase_realtime postgres"
+        self.assertTrue(
+            app.restore_list_line_is_protected_publication_member(
+                line,
+                {"supabase_realtime"},
+            )
+        )
+
+    def test_publication_table_restore_line_allows_unprotected_publication(self):
+        line = "1234; 0 0 PUBLICATION TABLE public orders app_publication postgres"
+        self.assertFalse(
+            app.restore_list_line_is_protected_publication_member(
+                line,
+                {"supabase_realtime"},
+            )
+        )
+
     def test_local_function_zip_uses_archive_root(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             functions_root = Path(tmpdir)
